@@ -3,8 +3,8 @@
 
 const env = {
   // API Configuration
-  API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1',
-  SOCKET_URL: process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3000',
+  API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1',
+  SOCKET_URL: process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001',
   
   // Tenant Configuration
   DEFAULT_TENANT: process.env.NEXT_PUBLIC_DEFAULT_TENANT || 'everyone',

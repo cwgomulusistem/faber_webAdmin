@@ -1,26 +1,24 @@
 'use client';
 
-// Login Page
-// Admin authentication page
+// Register Page
+// New user registration
 
-import React, { useState, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '../../hooks/useAuth';
 import { LayoutDashboard, AlertCircle, Loader2 } from 'lucide-react';
-import styles from './page.module.css';
+import styles from '../login/page.module.css'; // Reuse login styles
 
-function LoginForm() {
+export default function RegisterPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const { adminLogin } = useAuth();
+  const { register } = useAuth();
   
+  const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-
-  const redirectPath = searchParams.get('redirect') || '/dashboard';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,11 +26,12 @@ function LoginForm() {
     setError('');
 
     try {
-      await adminLogin({ email, password });
-      router.push(redirectPath);
+      await register({ email, password, fullName });
+      // Registration successful, redirect to login or dashboard
+      router.push('/dashboard');
     } catch (err: any) {
       console.error(err);
-      setError(err.message || 'Giriş başarısız. Bilgilerinizi kontrol edin.');
+      setError(err.message || 'Kayıt başarısız. Lütfen tekrar deneyin.');
     } finally {
       setIsLoading(false);
     }
@@ -45,8 +44,8 @@ function LoginForm() {
           <div className={styles.logo}>
             <LayoutDashboard size={32} />
           </div>
-          <h1 className={styles.title}>Faber Admin</h1>
-          <p className={styles.subtitle}>Yönetim paneline giriş yapın</p>
+          <h1 className={styles.title}>Kayıt Ol</h1>
+          <p className={styles.subtitle}>Faber Admin hesabı oluşturun</p>
         </div>
 
         {error && (
@@ -57,6 +56,19 @@ function LoginForm() {
         )}
 
         <form onSubmit={handleSubmit} className={styles.form}>
+        <div className={styles.field}>
+            <label className={styles.label}>Ad Soyad</label>
+            <input
+              type="text"
+              required
+              className={styles.input}
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              placeholder="Adınız Soyadınız"
+              disabled={isLoading}
+            />
+          </div>
+
           <div className={styles.field}>
             <label className={styles.label}>E-posta</label>
             <input
@@ -65,7 +77,7 @@ function LoginForm() {
               className={styles.input}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="admin@faber.app"
+              placeholder="ornek@email.com"
               disabled={isLoading}
             />
           </div>
@@ -78,7 +90,8 @@ function LoginForm() {
               className={styles.input}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
+              placeholder="En az 6 karakter"
+              minLength={6}
               disabled={isLoading}
             />
           </div>
@@ -91,29 +104,21 @@ function LoginForm() {
             {isLoading ? (
               <>
                 <Loader2 size={18} className={styles.spinner} />
-                <span>Giriş Yapılıyor...</span>
+                <span>Kayıt Olunuyor...</span>
               </>
             ) : (
-              'Giriş Yap'
+              'Kayıt Ol'
             )}
           </button>
         </form>
 
         <div className={styles.footer}>
-          Hesabınız yok mu?{' '}
-          <Link href="/register" className={styles.link}>
-            Kayıt Ol
+          Zaten hesabınız var mı?{' '}
+          <Link href="/login" className={styles.link}>
+            Giriş Yap
           </Link>
         </div>
       </div>
     </div>
-  );
-}
-
-export default function LoginPage() {
-  return (
-    <Suspense fallback={<div className={styles.container}>Yükleniyor...</div>}>
-      <LoginForm />
-    </Suspense>
   );
 }

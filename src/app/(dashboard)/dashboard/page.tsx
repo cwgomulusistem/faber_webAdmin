@@ -12,66 +12,60 @@ import {
   Activity,
   AlertCircle,
 } from 'lucide-react';
-import { StatsCard, TelemetryChart } from '../../../components/common';
+import { StatsCard } from '../../../components/common';
 import { DeviceCard } from '../../../components/devices';
 import { useDevices } from '../../../hooks/useDevices';
 import { homeService } from '../../../services/home.service';
+import { sceneService } from '../../../services/scene.service';
 import type { Home as HomeType } from '../../../types/home.types';
+import type { Scene } from '../../../types/scene.types';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend } from 'recharts';
 import styles from './page.module.css';
 
-// Mock data for initial development
-const mockStats = {
-  totalDevices: 24,
-  onlineDevices: 21,
-  totalRooms: 8,
-  activeScenes: 5,
-  energyToday: 12.5,
-  alerts: 2,
-};
-
-// Mock chart data
-const mockEnergyData = [
-  { time: '00:00', value: 0.5 },
-  { time: '04:00', value: 0.4 },
-  { time: '08:00', value: 1.2 },
-  { time: '12:00', value: 2.8 },
-  { time: '16:00', value: 2.5 },
-  { time: '20:00', value: 3.5 },
-  { time: '23:59', value: 1.8 },
-];
+// Chart colors
+const COLORS = ['#3b82f6', '#22c55e', '#ef4444', '#f59e0b', '#8b5cf6'];
 
 export default function DashboardPage() {
   const [homes, setHomes] = useState<HomeType[]>([]);
-  const [selectedHome, setSelectedHome] = useState<string | null>(null);
+  const [selectedHomeId, setSelectedHomeId] = useState<string | null>(null);
+  const [activeScenes, setActiveScenes] = useState<Scene[]>([]);
+  
   const { devices, isLoading, toggleDevice } = useDevices({ 
-    homeId: selectedHome || undefined 
+    homeId: selectedHomeId || undefined 
   });
 
-  // Fetch homes on mount
+  // Fetch homes and active scenes
   useEffect(() => {
-    const fetchHomes = async () => {
+    const fetchData = async () => {
       try {
         const userHomes = await homeService.getHomes();
         setHomes(userHomes);
-        if (userHomes.length > 0) {
+        if (userHomes.length > 0 && !selectedHomeId) {
           const defaultHome = userHomes.find(h => h.isDefault) || userHomes[0];
           setSelectedHomeId(defaultHome.id);
+          
+          const scenes = await sceneService.getActiveScenes(defaultHome.id);
+          setActiveScenes(scenes);
         }
       } catch (error) {
-        console.error('Failed to fetch homes:', error);
+        console.error('Failed to fetch dashboard data:', error);
       }
     };
-    fetchHomes();
-  }, []);
+    fetchData();
+  }, [selectedHomeId]);
+
+  // Calculations
+  const onlineCount = devices.filter(d => d.isOnline).length;
+  const currentTotalPower = devices.reduce((sum, d) => sum + (d.attributes?.power || 0), 0);
+  
+  // Chart Data: Device Status Distribution
+  const deviceStatusData = [
+    { name: 'Çevrimiçi', value: onlineCount },
+    { name: 'Çevrimdışı', value: devices.length - onlineCount },
+  ];
 
   // Display devices (limited to 6 for dashboard)
   const displayDevices = devices.slice(0, 6);
-  const onlineCount = devices.filter(d => d.isOnline).length;
-  
-  // Helper to safely set selected home
-  const setSelectedHomeId = (id: string) => {
-    setSelectedHome(id);
-  };
 
   return (
     <div className={styles.dashboard}>
@@ -79,8 +73,8 @@ export default function DashboardPage() {
       {homes.length > 1 && (
         <div className={styles.homeSelector}>
           <select 
-            value={selectedHome || ''} 
-            onChange={(e) => setSelectedHome(e.target.value)}
+            value={selectedHomeId || ''} 
+            onChange={(e) => setSelectedHomeId(e.target.value)}
             className={styles.homeSelect}
           >
             {homes.map(home => (
@@ -94,40 +88,38 @@ export default function DashboardPage() {
       <section className={styles.statsGrid}>
         <StatsCard
           title="Toplam Cihaz"
-          value={devices.length || mockStats.totalDevices}
+          value={devices.length}
           icon={Cpu}
           iconColor="#3b82f6"
-          trend={{ value: 12, isPositive: true }}
         />
         <StatsCard
           title="Çevrimiçi"
-          value={onlineCount || mockStats.onlineDevices}
+          value={onlineCount}
           icon={Activity}
           iconColor="#22c55e"
-          subtitle={`${devices.length ? Math.round((onlineCount / devices.length) * 100) : 87}% aktif`}
+          subtitle={`${devices.length ? Math.round((onlineCount / devices.length) * 100) : 0}% aktif`}
         />
         <StatsCard
           title="Odalar"
-          value={homes.find(h => h.id === selectedHome)?.rooms?.length || mockStats.totalRooms}
+          value={homes.find(h => h.id === selectedHomeId)?.rooms?.length || 0}
           icon={Home}
           iconColor="#8b5cf6"
         />
         <StatsCard
           title="Aktif Senaryolar"
-          value={mockStats.activeScenes}
+          value={activeScenes.length}
           icon={Layers}
           iconColor="#f59e0b"
         />
         <StatsCard
-          title="Bugünkü Enerji"
-          value={`${mockStats.energyToday} kWh`}
+          title="Anlık Güç"
+          value={`${currentTotalPower.toFixed(1)} W`}
           icon={Zap}
           iconColor="#06b6d4"
-          trend={{ value: 5, isPositive: false }}
         />
         <StatsCard
           title="Uyarılar"
-          value={mockStats.alerts}
+          value={0} // No alerts endpoint yet
           icon={AlertCircle}
           iconColor="#ef4444"
         />
@@ -135,12 +127,31 @@ export default function DashboardPage() {
 
       {/* Charts Section */}
       <section className={styles.section}>
-        <TelemetryChart 
-          title="Günlük Enerji Tüketimi" 
-          data={mockEnergyData} 
-          unit="kWh"
-          color="#06b6d4"
-        />
+        <div className={styles.sectionHeader}>
+           <h2 className={styles.sectionTitle}>Cihaz Durumu</h2>
+        </div>
+        <div className={styles.chartContainer} style={{ height: 300, background: 'white', borderRadius: 16, padding: '1rem' }}>
+             <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={deviceStatusData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={80}
+                    fill="#8884d8"
+                    paddingAngle={5}
+                    dataKey="value"
+                  >
+                    {deviceStatusData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={index === 0 ? '#22c55e' : '#ef4444'} />
+                    ))}
+                  </Pie>
+                  <RechartsTooltip />
+                  <Legend />
+                </PieChart>
+             </ResponsiveContainer>
+        </div>
       </section>
 
       {/* Devices Section */}
