@@ -11,7 +11,7 @@ export const sceneService = {
    * GET /api/v1/mobile/scenes
    */
   async getScenes(homeId: string): Promise<Scene[]> {
-    const response = await api.get<ApiResponse<Scene[]>>('/mobile/scenes', {
+    const response = await api.get<ApiResponse<Scene[]>>('/admin/scenes', {
       params: { homeId },
     });
     return response.data.data || [];
@@ -57,7 +57,7 @@ export const sceneService = {
    * POST /api/v1/mobile/scenes/:id/execute
    */
   async executeScene(sceneId: string): Promise<void> {
-    await api.post(`/mobile/scenes/${sceneId}/execute`);
+    await api.post(`/admin/scenes/${sceneId}/execute`);
   },
   
   /**

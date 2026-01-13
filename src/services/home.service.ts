@@ -18,8 +18,9 @@ export const homeService = {
    * GET /api/v1/mobile/homes
    */
   async getHomes(): Promise<Home[]> {
-    const response = await api.get<ApiResponse<Home[]>>('/mobile/homes');
-    return response.data.data || [];
+    // Uses Admin API which returns paginated response
+    const response = await api.get<ApiResponse<any>>('/admin/homes');
+    return response.data.data?.data || response.data.data || [];
   },
   
   /**
