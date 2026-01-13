@@ -10,6 +10,10 @@ export const deviceService = {
    * Get all devices
    * GET /api/v1/mobile/devices
    */
+  /**
+   * Get all devices (Admin)
+   * GET /api/v1/admin/devices
+   */
   async getDevices(
     homeId?: string,
     filter?: DeviceFilter,
@@ -18,8 +22,9 @@ export const deviceService = {
     const params: Record<string, unknown> = { ...pagination, ...filter };
     if (homeId) params.homeId = homeId;
     
-    const response = await api.get<ApiResponse<Device[]>>('/mobile/devices', { params });
-    return response.data.data || [];
+    // Admin Endpoint for listing devices
+    const response = await api.get<ApiResponse<any>>('/admin/devices', { params });
+    return response.data.data?.data || response.data.data || [];
   },
   
   /**
@@ -30,7 +35,7 @@ export const deviceService = {
     pagination: PaginationParams = { page: 1, limit: 20 }
   ): Promise<PaginatedResponse<Device>> {
     const response = await api.get<ApiResponse<PaginatedResponse<Device>>>(
-      '/mobile/devices',
+      '/admin/devices',
       { params: { homeId, ...pagination } }
     );
     return response.data.data!;
@@ -38,20 +43,25 @@ export const deviceService = {
   
   /**
    * Get single device by ID
-   * GET /api/v1/mobile/devices/:id
+   * GET /api/v1/mobile/devices/:id (Fallback to mobile or need admin endpoint)
+   * Currently backend listDevices returns full object so getDevices is enough.
+   * If detailed view needed, we might need /admin/devices/:id in backend
    */
   async getDevice(deviceId: string): Promise<Device> {
-    const response = await api.get<ApiResponse<Device>>(`/mobile/devices/${deviceId}`);
-    return response.data.data!;
+    // Fallback to searching in list for now as /admin/devices/:id is not implemented yet
+    const devices = await this.getDevices();
+    const device = devices.find(d => d.id === deviceId);
+    if (!device) throw new Error('Device not found');
+    return device;
   },
   
   /**
-   * Control a device
-   * POST /api/v1/mobile/devices/:id/control
+   * Control a device (Admin Override)
+   * POST /api/v1/admin/devices/:id/control
    */
   async controlDevice(deviceId: string, action: DeviceControl): Promise<Device> {
     const response = await api.post<ApiResponse<Device>>(
-      `/mobile/devices/${deviceId}/control`,
+      `/admin/devices/${deviceId}/control`,
       action
     );
     return response.data.data!;
