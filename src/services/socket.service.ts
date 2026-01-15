@@ -144,6 +144,59 @@ class SocketService {
   }
   
   /**
+   * Subscribe to entities
+   */
+  subscribeToEntities(callback: (data: any) => void) {
+      if (!this.socket) return;
+      
+      this.socket.on('entity_update', callback);
+      
+      this.socket.emit('subscribe_entities', {}, (response: any) => {
+          if (response?.success) {
+               // Initial state could be handled here or via a separate callback if needed
+               // For now, we rely on the caller to handle the initial result if they want
+          }
+      });
+      
+      return () => {
+          this.socket?.off('entity_update', callback);
+      };
+  }
+
+  /**
+   * Call a service
+   */
+  async callService(domain: string, service: string, serviceData?: any, targetId?: string): Promise<boolean> {
+      if (!this.socket) return false;
+      return new Promise((resolve) => {
+          this.socket!.emit('call_service', {
+              domain,
+              service,
+              service_data: serviceData,
+              target: targetId ? { entity_id: targetId } : undefined
+          }, (response: any) => {
+              resolve(response?.success || false);
+          });
+      });
+  }
+
+  /**
+   * Get initial entities
+   */
+  getEntities(): Promise<any[]> {
+      if (!this.socket) return Promise.resolve([]);
+      return new Promise((resolve) => {
+          this.socket!.emit('subscribe_entities', {}, (response: any) => {
+               if(response?.success) {
+                   resolve(response.result);
+               } else {
+                   resolve([]);
+               }
+          });
+      });
+  }
+
+  /**
    * Check if socket is connected
    */
   get isConnected(): boolean {
