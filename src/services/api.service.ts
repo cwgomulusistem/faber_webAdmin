@@ -51,7 +51,7 @@ const onTokenRefreshed = (token: string): void => {
   refreshSubscribers = [];
 };
 
-// Request Interceptor: Add Authorization header and tenant info
+// Request Interceptor: Add Authorization header and home info
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const token = tokenManager.getToken();
@@ -60,12 +60,16 @@ api.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`;
     }
     
-    // Add tenant header if available
-    if (typeof window !== 'undefined') {
-      const hostname = window.location.hostname;
-      const parts = hostname.split('.');
-      if (parts.length >= 3) {
-        config.headers['X-Tenant-ID'] = parts[0];
+    // Add home ID header if available (from localStorage, set by HomeContext)
+    if (typeof window !== 'undefined' && config.headers) {
+      try {
+        const activeHomeId = window.localStorage.getItem('faber_active_home_id');
+        if (activeHomeId) {
+          config.headers['X-Home-ID'] = activeHomeId;
+        }
+      } catch (error) {
+        // localStorage access failed, continue without home ID
+        // Some endpoints don't require home ID
       }
     }
     

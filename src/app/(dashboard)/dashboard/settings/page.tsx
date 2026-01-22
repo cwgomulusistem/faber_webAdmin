@@ -5,11 +5,11 @@
 
 import React from 'react';
 import { Globe, Moon, Bell, Shield, Smartphone } from 'lucide-react';
-import { useTenant } from '../../../../hooks/useTenant';
+import { useHome } from '../../../../hooks/useHome';
 import styles from './page.module.css';
 
 export default function SettingsPage() {
-  const { tenant } = useTenant();
+  const { activeHome, homes } = useHome();
 
   return (
     <div className={styles.page}>
@@ -19,28 +19,30 @@ export default function SettingsPage() {
       </div>
 
       <div className={styles.grid}>
-        {/* Tenant Info */}
+        {/* Home Info */}
         <div className={styles.section}>
-          <h2 className={styles.sectionTitle}>Organizasyon Bilgileri</h2>
+          <h2 className={styles.sectionTitle}>Ev Bilgileri</h2>
           <div className={styles.card}>
             <div className={styles.field}>
-              <label>Tenant Adı</label>
-              <div className={styles.value}>{tenant.name}</div>
+              <label>Aktif Ev</label>
+              <div className={styles.value}>{activeHome?.name || 'Ev seçilmedi'}</div>
             </div>
-            <div className={styles.field}>
-              <label>Tenant ID</label>
-              <div className={styles.value}>{tenant.id}</div>
-            </div>
-            <div className={styles.field}>
-              <label>Ana Renk</label>
-              <div className={styles.colorPreview}>
-                <span 
-                  className={styles.colorDot} 
-                  style={{ backgroundColor: tenant.primaryColor }}
-                />
-                {tenant.primaryColor}
-              </div>
-            </div>
+            {activeHome && (
+              <>
+                <div className={styles.field}>
+                  <label>Ev ID</label>
+                  <div className={styles.value}>{activeHome.id}</div>
+                </div>
+                <div className={styles.field}>
+                  <label>Adres</label>
+                  <div className={styles.value}>{activeHome.address || 'Belirtilmemiş'}</div>
+                </div>
+                <div className={styles.field}>
+                  <label>Toplam Ev Sayısı</label>
+                  <div className={styles.value}>{homes.length}</div>
+                </div>
+              </>
+            )}
           </div>
         </div>
 

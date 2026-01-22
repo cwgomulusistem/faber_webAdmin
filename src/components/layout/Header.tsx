@@ -5,7 +5,7 @@
 
 import React, { useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { useTenant } from '../../hooks/useTenant';
+import { useHome } from '../../hooks/useHome';
 import { useSocket } from '../../hooks/useSocket';
 import {
   Bell,
@@ -33,7 +33,7 @@ const pageTitles: Record<string, string> = {
 
 export function Header({ onMenuClick }: HeaderProps) {
   const pathname = usePathname();
-  const { tenant } = useTenant();
+  const { activeHome } = useHome();
   const { isConnected } = useSocket();
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -60,7 +60,7 @@ export function Header({ onMenuClick }: HeaderProps) {
         <div className={styles.titleSection}>
           <h1 className={styles.pageTitle}>{pageTitle}</h1>
           <span className={styles.breadcrumb}>
-            {tenant.name} / {pageTitle}
+            {activeHome?.name || 'Ev Seçilmedi'} / {pageTitle}
           </span>
         </div>
       </div>

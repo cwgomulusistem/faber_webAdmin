@@ -3,21 +3,21 @@
 // Providers wrapper for client-side contexts
 
 import { AuthProvider } from '../contexts/AuthContext';
-import { TenantProvider } from '../contexts/TenantContext';
+import { HomeProvider } from '../contexts/HomeContext';
 import { SocketProvider } from '../contexts/SocketContext';
 import { EntityProvider } from '../contexts/entity.context';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <TenantProvider>
-      <AuthProvider>
+    <AuthProvider>
+      <HomeProvider>
         <SocketProvider>
           <EntityProvider>
             {children}
           </EntityProvider>
         </SocketProvider>
-      </AuthProvider>
-    </TenantProvider>
+      </HomeProvider>
+    </AuthProvider>
   );
 }
 

@@ -6,7 +6,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useTenant } from '../../hooks/useTenant';
+import { useHome } from '../../hooks/useHome';
 import { useAuth } from '../../hooks/useAuth';
 import {
   LayoutDashboard,
@@ -43,7 +43,7 @@ const navItems: NavItem[] = [
 export function Sidebar() {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const pathname = usePathname();
-  const { tenant } = useTenant();
+  const { activeHome } = useHome();
   const { logout, user } = useAuth();
   const { isConnected } = useSocket();
 
@@ -58,7 +58,7 @@ export function Sidebar() {
       <div className={styles.logoContainer}>
         <div className={styles.logo}>
           {!isCollapsed && (
-            <span className={styles.logoText}>{tenant.name}</span>
+            <span className={styles.logoText}>{activeHome?.name || 'Faber'}</span>
           )}
           {isCollapsed && <span className={styles.logoIcon}>F</span>}
         </div>
