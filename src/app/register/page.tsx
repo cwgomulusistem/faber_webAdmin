@@ -1,13 +1,15 @@
 'use client';
 
 // Register Page
-// New user registration
+// New user registration with E.164 phone number support
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '../../hooks/useAuth';
 import { LayoutDashboard, AlertCircle, Loader2 } from 'lucide-react';
+import PhoneInput, { isValidPhoneNumber } from 'react-phone-number-input';
+import 'react-phone-number-input/style.css';
 import styles from '../login/page.module.css'; // Reuse login styles
 
 export default function RegisterPage() {
@@ -18,23 +20,32 @@ export default function RegisterPage() {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [phone, setPhone] = useState('');
+  const [phone, setPhone] = useState<string | undefined>('');
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [phoneError, setPhoneError] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
+    setPhoneError('');
 
     try {
       if (step === 'register') {
+        // Telefon numarası validasyonu (E.164 formatı)
+        if (!phone || !isValidPhoneNumber(phone)) {
+          setPhoneError('Geçerli bir telefon numarası giriniz');
+          setIsLoading(false);
+          return;
+        }
+
         const result = await register({ 
           email, 
           password, 
           fullName,
-          phone // Telefon artık zorunlu
+          phone // E.164 formatında (örn: +905551234567)
         });
         
         if (result && result.requireActivation) {
@@ -119,15 +130,18 @@ export default function RegisterPage() {
 
               <div className={styles.field}>
                 <label className={styles.label}>Telefon</label>
-                <input
-                  type="tel"
-                  required
-                  className={styles.input}
+                <PhoneInput
+                  international
+                  defaultCountry="TR"
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="+90 555 123 45 67"
+                  onChange={setPhone}
                   disabled={isLoading}
+                  className={styles.phoneInput}
+                  placeholder="555 123 45 67"
                 />
+                {phoneError && (
+                  <span className={styles.fieldError}>{phoneError}</span>
+                )}
               </div>
             </>
           ) : (

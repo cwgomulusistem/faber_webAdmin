@@ -161,7 +161,8 @@ api.interceptors.response.use(
       const clientId = tokenManager.getClientId();
       const clientType = tokenManager.getClientType();
       
-      const response = await axios.post<ApiResponse<TokenResponse>>(
+      // Backend returns token directly (not wrapped in ApiResponse)
+      const response = await axios.post<TokenResponse>(
         `${env.API_URL}/api/v1/auth/refresh`,
         { 
           refreshToken: refreshToken,
@@ -171,15 +172,15 @@ api.interceptors.response.use(
         { headers: { 'Content-Type': 'application/json' } }
       );
       
-      const { token, refresh_token } = response.data.data as TokenResponse;
-      tokenManager.setTokens(token, refresh_token);
+      const { accessToken, refreshToken: newRefreshToken } = response.data;
+      tokenManager.setTokens(accessToken, newRefreshToken);
       
       // Notify waiting requests
-      onTokenRefreshed(token);
+      onTokenRefreshed(accessToken);
       
       // Retry original request
       if (originalRequest.headers) {
-        originalRequest.headers.Authorization = `Bearer ${token}`;
+        originalRequest.headers.Authorization = `Bearer ${accessToken}`;
       }
       return api(originalRequest);
       

@@ -33,21 +33,22 @@ export const authService = {
       clientType: tokenManager.getClientType(),
     };
     
-    const response = await api.post<ApiResponse<TokenResponse | { message: string }>>('/auth/login', loginPayload);
+    const response = await api.post<TokenResponse | { message: string }>('/auth/login', loginPayload);
     
     if (response.status === 202) {
       return { require2FA: true };
     }
 
-    const data = response.data.data as TokenResponse;
-    tokenManager.setTokens(data.token, data.refresh_token);
+    // Backend returns token directly (not wrapped in ApiResponse)
+    const data = response.data as TokenResponse;
+    tokenManager.setTokens(data.accessToken, data.refreshToken);
     
     return {
       result: {
         user: data.user!,
-        token: data.token,
-        refreshToken: data.refresh_token,
-        expiresIn: data.expires_in,
+        token: data.accessToken,
+        refreshToken: data.refreshToken,
+        expiresIn: data.expiresIn,
       }
     };
   },
@@ -65,21 +66,22 @@ export const authService = {
       clientType: tokenManager.getClientType(),
     };
     
-    const response = await api.post<ApiResponse<TokenResponse | { message: string }>>('/auth/login', loginPayload);
+    const response = await api.post<TokenResponse | { message: string }>('/auth/login', loginPayload);
     
     if (response.status === 202) {
       return { require2FA: true };
     }
 
-    const data = response.data.data as TokenResponse;
-    tokenManager.setTokens(data.token, data.refresh_token);
+    // Backend returns token directly (not wrapped in ApiResponse)
+    const data = response.data as TokenResponse;
+    tokenManager.setTokens(data.accessToken, data.refreshToken);
     
     return {
       result: {
         user: data.user!,
-        token: data.token,
-        refreshToken: data.refresh_token,
-        expiresIn: data.expires_in,
+        token: data.accessToken,
+        refreshToken: data.refreshToken,
+        expiresIn: data.expiresIn,
       }
     };
   },
@@ -88,8 +90,13 @@ export const authService = {
    * User registration
    * POST /api/v1/auth/register
    * Includes device binding (clientId, clientType) for token security
+   * 
+   * Backend returns:
+   * - 201 + TokenResponse: Registration successful, auto-login
+   * - 202 + { message: "activation required" }: Email/SMS verification needed
+   * - 400 + { error: "..." }: Registration failed
    */
-  async register(payload: RegisterPayload): Promise<{ id: string; requireActivation?: boolean }> {
+  async register(payload: RegisterPayload): Promise<{ result?: AuthResult; requireActivation?: boolean }> {
     // Add device binding info to register request
     const registerPayload = {
       ...payload,
@@ -97,16 +104,28 @@ export const authService = {
       clientType: tokenManager.getClientType(),
     };
     
-    const response = await api.post<ApiResponse<{ id?: string; userId?: string; message: string }>>(
+    const response = await api.post<TokenResponse | { message: string }>(
       '/auth/register',
       registerPayload
     );
 
+    // Activation required - need email/SMS verification
     if (response.status === 202) {
-      return { id: response.data.data?.userId || '', requireActivation: true };
+      return { requireActivation: true };
     }
 
-    return { id: response.data.data?.id || '' };
+    // Registration successful - auto-login with tokens
+    const data = response.data as TokenResponse;
+    tokenManager.setTokens(data.accessToken, data.refreshToken);
+    
+    return {
+      result: {
+        user: data.user!,
+        token: data.accessToken,
+        refreshToken: data.refreshToken,
+        expiresIn: data.expiresIn,
+      }
+    };
   },
 
   /**
@@ -137,16 +156,17 @@ export const authService = {
       clientType: tokenManager.getClientType(),
     };
     
-    const response = await api.post<ApiResponse<TokenResponse>>('/auth/verify-2fa', verify2FAPayload);
-    const data = response.data.data!;
+    const response = await api.post<TokenResponse>('/auth/verify-2fa', verify2FAPayload);
+    // Backend returns token directly (not wrapped in ApiResponse)
+    const data = response.data;
     
-    tokenManager.setTokens(data.token, data.refresh_token);
+    tokenManager.setTokens(data.accessToken, data.refreshToken);
     
     return {
       user: data.user!,
-      token: data.token,
-      refreshToken: data.refresh_token,
-      expiresIn: data.expires_in,
+      token: data.accessToken,
+      refreshToken: data.refreshToken,
+      expiresIn: data.expiresIn,
     };
   },
 
@@ -171,16 +191,24 @@ export const authService = {
    * POST /api/v1/auth/google
    */
   async googleLogin(payload: GoogleLoginPayload): Promise<AuthResult> {
-    const response = await api.post<ApiResponse<TokenResponse>>('/auth/google', payload);
-    const data = response.data.data!;
+    // Add device binding info to Google login
+    const googlePayload = {
+      ...payload,
+      clientId: tokenManager.getClientId(),
+      clientType: tokenManager.getClientType(),
+    };
     
-    tokenManager.setTokens(data.token, data.refresh_token);
+    const response = await api.post<TokenResponse>('/auth/google', googlePayload);
+    // Backend returns token directly (not wrapped in ApiResponse)
+    const data = response.data;
+    
+    tokenManager.setTokens(data.accessToken, data.refreshToken);
     
     return {
       user: data.user!,
-      token: data.token,
-      refreshToken: data.refresh_token,
-      expiresIn: data.expires_in,
+      token: data.accessToken,
+      refreshToken: data.refreshToken,
+      expiresIn: data.expiresIn,
     };
   },
   
@@ -198,11 +226,12 @@ export const authService = {
   
   /**
    * Get current user info
-   * GET /api/v1/auth/me
+   * GET /api/v1/auth/profile
    */
   async getCurrentUser(): Promise<User | AdminUser> {
-    const response = await api.get<ApiResponse<User | AdminUser>>('/auth/profile');
-    return response.data.data!;
+    // Backend returns user directly (not wrapped in ApiResponse)
+    const response = await api.get<User | AdminUser>('/auth/profile');
+    return response.data;
   },
   
   /**

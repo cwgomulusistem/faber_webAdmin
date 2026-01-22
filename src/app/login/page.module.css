@@ -153,3 +153,79 @@
 .link:hover {
   text-decoration: underline;
 }
+
+/* Phone Input Styles */
+.phoneInput {
+  width: 100%;
+}
+
+.phoneInput input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 1rem;
+  color: #0f172a;
+  transition: all 0.2s;
+}
+
+.phoneInput input:focus {
+  outline: none;
+  border-color: var(--color-primary, #3b82f6);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.phoneInput input:disabled {
+  background: #f8fafc;
+  cursor: not-allowed;
+}
+
+/* Country Select in Phone Input */
+.phoneInput :global(.PhoneInputCountry) {
+  margin-right: 0.5rem;
+}
+
+.phoneInput :global(.PhoneInputCountryIcon) {
+  width: 24px;
+  height: 18px;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.phoneInput :global(.PhoneInputCountrySelect) {
+  padding: 0.5rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: white;
+  cursor: pointer;
+}
+
+.phoneInput :global(.PhoneInputCountrySelect:focus) {
+  outline: none;
+  border-color: var(--color-primary, #3b82f6);
+}
+
+/* Field Error */
+.fieldError {
+  color: #dc2626;
+  font-size: 0.75rem;
+  margin-top: 0.25rem;
+}
+
+/* Hint Text */
+.hint {
+  color: #64748b;
+  font-size: 0.75rem;
+  margin-top: 0.25rem;
+}
+
+/* Back Link */
+.backLink {
+  color: var(--color-primary, #3b82f6);
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.backLink:hover {
+  text-decoration: underline;
+}

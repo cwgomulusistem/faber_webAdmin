@@ -73,10 +73,10 @@ export interface GoogleLoginPayload {
 }
 
 export interface TokenResponse {
-  token: string;
-  refresh_token: string;
-  expires_in: number;
-  token_type: 'Bearer';
+  accessToken: string;
+  refreshToken: string;
+  expiresIn: number;
+  tokenType?: 'Bearer';
   user?: User;
 }
 

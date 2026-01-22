@@ -142,12 +142,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const result = await authService.register(payload);
       
+      // If activation required, return early
       if (result.requireActivation) {
         return { requireActivation: true };
       }
 
-      // Auto-login after registration only if no activation required
-      await login({ email: payload.email, password: payload.password });
+      // Backend returned tokens directly - no need to login again
+      if (result.result) {
+        handleAuthResult(result.result, 'user');
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Kayıt başarısız';
       setError(message);
@@ -155,7 +158,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, [login]);
+  }, [handleAuthResult]);
 
   // Google Login
   const googleLogin = useCallback(async (payload: GoogleLoginPayload) => {
