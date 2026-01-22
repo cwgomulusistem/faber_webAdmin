@@ -114,9 +114,20 @@ api.interceptors.response.use(
   async (error: AxiosError<ApiResponse>) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
     
+    // Extract error message from response
+    const errorMessage = (error.response?.data as any)?.error 
+      || (error.response?.data as any)?.message 
+      || error.message 
+      || 'Bir hata oluştu';
+    
+    // Create a more informative error
+    const enhancedError = new Error(errorMessage);
+    (enhancedError as any).response = error.response;
+    (enhancedError as any).status = error.response?.status;
+    
     // Not a 401 or already retried
     if (error.response?.status !== 401 || originalRequest._retry) {
-      return Promise.reject(error);
+      return Promise.reject(enhancedError);
     }
     
     // No refresh token available
