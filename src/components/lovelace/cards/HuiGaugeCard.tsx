@@ -1,60 +1,282 @@
-import React from 'react';
-import { HassContext } from '@/types/hass';
-import { LovelaceCardConfig } from '../HuiCard';
-import dynamic from 'next/dynamic';
+'use client';
 
-const PieChart = dynamic(() => import('recharts').then(mod => mod.PieChart), { ssr: false });
-const Pie = dynamic(() => import('recharts').then(mod => mod.Pie), { ssr: false });
-const Cell = dynamic(() => import('recharts').then(mod => mod.Cell), { ssr: false });
+import React, { useMemo } from 'react';
+import { cn } from '@/lib/utils';
+import type { HassContext, HassEntity, ActionConfig } from '@/types/hass';
+import { HaCard } from '../components/HaCard';
+import { HaGauge, severityColors, type GaugeLevel } from '../components/HaGauge';
+import { 
+  createActionHandlers, 
+  createLongPressHandlers,
+  computeEntityName,
+  hasAnyAction,
+} from '../common/action-handler';
+
+// ============================================
+// Gauge Card Config
+// ============================================
+
+export interface SeverityConfig {
+  green?: number;
+  yellow?: number;
+  red?: number;
+}
+
+export interface GaugeSegment {
+  from: number;
+  color: string;
+  label?: string;
+}
+
+export interface GaugeCardConfig {
+  type: 'gauge';
+  entity: string;
+  attribute?: string;
+  name?: string;
+  unit?: string;
+  min?: number;
+  max?: number;
+  severity?: SeverityConfig;
+  segments?: GaugeSegment[];
+  needle?: boolean;
+  theme?: string;
+  tap_action?: ActionConfig;
+  hold_action?: ActionConfig;
+  double_tap_action?: ActionConfig;
+}
+
+// ============================================
+// Props
+// ============================================
 
 interface Props {
-  config: LovelaceCardConfig;
+  config: GaugeCardConfig;
   hass: HassContext;
+  onMoreInfo?: (entityId: string) => void;
 }
 
-export function HuiGaugeCard({ config, hass }: Props) {
-  const entityId = config.entity;
-  const entity = hass.states[entityId];
-  const name = config.name || entity?.attributes.friendly_name || entityId;
-  const state = parseFloat(entity?.state) || 0;
-  const unit = entity?.attributes.unit_of_measurement || '';
-  const min = config.min || 0;
-  const max = config.max || 100;
-  
-  // Calculate gauge angle
-  const normalized = Math.min(Math.max((state - min) / (max - min), 0), 1);
-  const data = [
-      { name: 'value', value: normalized },
-      { name: 'empty', value: 1 - normalized }
-  ];
-  const startAngle = 180;
-  const endAngle = 0;
+// ============================================
+// Constants
+// ============================================
 
+export const DEFAULT_MIN = 0;
+export const DEFAULT_MAX = 100;
+
+// ============================================
+// Helper Functions
+// ============================================
+
+function computeSeverityColor(
+  value: number,
+  config: GaugeCardConfig
+): string {
+  // New segment format
+  if (config.segments && config.segments.length > 0) {
+    const sortedSegments = [...config.segments].sort((a, b) => a.from - b.from);
+    
+    for (let i = sortedSegments.length - 1; i >= 0; i--) {
+      if (value >= sortedSegments[i].from) {
+        return sortedSegments[i].color;
+      }
+    }
+    return sortedSegments[0]?.color || severityColors.normal;
+  }
+  
+  // Old severity format
+  const severity = config.severity;
+  if (!severity) {
+    return severityColors.normal;
+  }
+  
+  const entries = Object.entries(severity) as [keyof SeverityConfig, number | undefined][];
+  const validEntries = entries
+    .filter(([_, value]) => value !== undefined)
+    .map(([key, value]) => [key, value as number] as const)
+    .sort((a, b) => a[1] - b[1]);
+  
+  if (validEntries.length === 0) {
+    return severityColors.normal;
+  }
+  
+  for (let i = validEntries.length - 1; i >= 0; i--) {
+    const [colorKey, threshold] = validEntries[i];
+    if (value >= threshold) {
+      return severityColors[colorKey] || severityColors.normal;
+    }
+  }
+  
+  return severityColors.normal;
+}
+
+function computeLevels(config: GaugeCardConfig): GaugeLevel[] | undefined {
+  // New segment format
+  if (config.segments && config.segments.length > 0) {
+    return config.segments.map(segment => ({
+      level: segment.from,
+      stroke: segment.color,
+      label: segment.label,
+    }));
+  }
+  
+  // Old severity format
+  const severity = config.severity;
+  if (!severity || !config.needle) {
+    return undefined;
+  }
+  
+  const levels: GaugeLevel[] = [];
+  
+  if (severity.green !== undefined) {
+    levels.push({ level: severity.green, stroke: severityColors.green });
+  }
+  if (severity.yellow !== undefined) {
+    levels.push({ level: severity.yellow, stroke: severityColors.yellow });
+  }
+  if (severity.red !== undefined) {
+    levels.push({ level: severity.red, stroke: severityColors.red });
+  }
+  
+  return levels.length > 0 ? levels.sort((a, b) => a.level - b.level) : undefined;
+}
+
+// ============================================
+// HuiGaugeCard Component
+// ============================================
+
+export function HuiGaugeCard({ config, hass, onMoreInfo }: Props) {
+  const entityId = config.entity;
+  const stateObj = hass.states[entityId];
+  
+  // Config with defaults
+  const minValue = config.min ?? DEFAULT_MIN;
+  const maxValue = config.max ?? DEFAULT_MAX;
+  
+  // Compute values
+  const name = useMemo(() => 
+    computeEntityName(hass, stateObj, config.name),
+    [hass, stateObj, config.name]
+  );
+  
+  // Get the value to display
+  const valueToDisplay = useMemo(() => {
+    if (!stateObj) return NaN;
+    
+    if (config.attribute) {
+      return Number(stateObj.attributes[config.attribute]);
+    }
+    return Number(stateObj.state);
+  }, [stateObj, config.attribute]);
+  
+  // Unit
+  const unit = useMemo(() => {
+    if (config.unit !== undefined) return config.unit;
+    return stateObj?.attributes.unit_of_measurement || '';
+  }, [config.unit, stateObj]);
+  
+  // Severity color (for non-needle mode)
+  const gaugeColor = useMemo(() => {
+    if (config.needle) return undefined;
+    if (isNaN(valueToDisplay)) return severityColors.normal;
+    return computeSeverityColor(valueToDisplay, config);
+  }, [valueToDisplay, config]);
+  
+  // Levels (for needle mode)
+  const levels = useMemo(() => computeLevels(config), [config]);
+  
+  // Actions
+  const cardActions = createActionHandlers({
+    hass,
+    config: {
+      entity: entityId,
+      tap_action: config.tap_action || { action: 'more-info' },
+      hold_action: config.hold_action,
+      double_tap_action: config.double_tap_action,
+    },
+    onMoreInfo,
+  });
+  
+  const buttonHandlers = createLongPressHandlers({
+    onTap: cardActions.handleTap,
+    onHold: cardActions.handleHold,
+    onDoubleTap: cardActions.hasDoubleTapAction ? cardActions.handleDoubleTap : undefined,
+  });
+  
+  const hasAction = hasAnyAction({
+    tap_action: config.tap_action || { action: 'more-info' },
+    hold_action: config.hold_action,
+    double_tap_action: config.double_tap_action,
+  });
+  
+  // Handle missing entity
+  if (!stateObj) {
+    return (
+      <HaCard className="p-4 h-full flex items-center justify-center">
+        <div className="text-center text-[var(--warning-color)]">
+          <span className="text-2xl">⚠️</span>
+          <div className="text-sm mt-1">{entityId}</div>
+        </div>
+      </HaCard>
+    );
+  }
+  
+  // Handle unavailable state
+  if (stateObj.state === 'unavailable') {
+    return (
+      <HaCard className="p-4 h-full flex items-center justify-center">
+        <div className="text-center text-[var(--secondary-text-color)]">
+          <span className="text-lg">Unavailable</span>
+          <div className="text-sm mt-1">{entityId}</div>
+        </div>
+      </HaCard>
+    );
+  }
+  
+  // Handle non-numeric value
+  if (isNaN(valueToDisplay)) {
+    return (
+      <HaCard className="p-4 h-full flex items-center justify-center">
+        <div className="text-center text-[var(--warning-color)]">
+          <span className="text-lg">
+            {config.attribute 
+              ? `Attribute "${config.attribute}" is not numeric` 
+              : 'State is not numeric'
+            }
+          </span>
+          <div className="text-sm mt-1">{entityId}</div>
+        </div>
+      </HaCard>
+    );
+  }
+  
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex flex-col items-center">
-      <div className="text-sm font-medium text-slate-500 mb-2">{name}</div>
-      <div className="relative w-32 h-16">
-         <PieChart width={128} height={128} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
-            <Pie
-                data={data}
-                cx="50%"
-                cy="100%"
-                startAngle={startAngle}
-                endAngle={endAngle}
-                innerRadius={40}
-                outerRadius={60}
-                paddingAngle={0}
-                dataKey="value"
-            >
-                <Cell fill="#3b82f6" />
-                <Cell fill="#f1f5f9" />
-            </Pie>
-         </PieChart>
-          <div className="absolute bottom-0 left-0 w-full text-center pb-0">
-             <div className="text-xl font-bold text-slate-800">{state}</div>
-             <div className="text-xs text-slate-500">{unit}</div>
-         </div>
+    <HaCard
+      className={cn(
+        'h-full flex flex-col items-center justify-center p-4',
+        hasAction && 'cursor-pointer'
+      )}
+      tabIndex={hasAction ? 0 : undefined}
+      role={hasAction ? 'button' : undefined}
+      {...buttonHandlers}
+    >
+      <HaGauge
+        value={valueToDisplay}
+        min={minValue}
+        max={maxValue}
+        label={unit}
+        needle={config.needle}
+        levels={levels}
+        size="lg"
+        className="max-w-[250px] w-full"
+      />
+      
+      <div 
+        className="name text-center mt-2 text-[var(--primary-text-color)] font-medium truncate w-full"
+        title={name}
+      >
+        {name}
       </div>
-    </div>
+    </HaCard>
   );
 }
+
+export default HuiGaugeCard;
