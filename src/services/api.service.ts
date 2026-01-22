@@ -12,7 +12,7 @@ const REFRESH_TOKEN_KEY = 'admin_refresh_token';
 
 // Create axios instance
 const api = axios.create({
-  baseURL: env.API_URL,
+  baseURL: `${env.API_URL}/api/v1`,
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
@@ -113,7 +113,7 @@ api.interceptors.response.use(
     
     try {
       const response = await axios.post<ApiResponse<TokenResponse>>(
-        `${env.API_URL}/auth/refresh`,
+        `${env.API_URL}/api/v1/auth/refresh`,
         { refresh_token: refreshToken },
         { headers: { 'Content-Type': 'application/json' } }
       );

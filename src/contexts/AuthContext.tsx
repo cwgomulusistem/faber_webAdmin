@@ -31,6 +31,10 @@ const initialState: AuthContextType = {
   logout: async () => {},
   refreshAuth: async () => {},
   clearError: () => {},
+  activate: async () => {},
+  verify2FA: async () => {},
+  forgotPassword: async () => {},
+  resetPassword: async () => {},
 };
 
 // Create context
@@ -91,7 +95,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setError(null);
     try {
       const result = await authService.login(payload);
-      handleAuthResult(result, 'user');
+      
+      if (result.require2FA) {
+        return { require2FA: true };
+      }
+      
+      if (result.result) {
+        handleAuthResult(result.result, 'user');
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Giriş başarısız';
       setError(message);
@@ -107,7 +118,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setError(null);
     try {
       const result = await authService.adminLogin(payload);
-      handleAuthResult(result, 'admin');
+      
+      if (result.require2FA) {
+        return { require2FA: true };
+      }
+
+      if (result.result) {
+        handleAuthResult(result.result, 'admin');
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Admin girişi başarısız';
       setError(message);
@@ -122,9 +140,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(true);
     setError(null);
     try {
-      await authService.register(payload);
-      // Auto-login after registration
-      await login(payload);
+      const result = await authService.register(payload);
+      
+      if (result.requireActivation) {
+        return { requireActivation: true };
+      }
+
+      // Auto-login after registration only if no activation required
+      await login({ email: payload.email, password: payload.password });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Kayıt başarısız';
       setError(message);
@@ -149,6 +172,67 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setIsLoading(false);
     }
   }, [handleAuthResult]);
+
+  // Activate
+  const activate = useCallback(async (payload: { email: string; code: string }) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      await authService.activate(payload);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Aktivasyon başarısız';
+      setError(message);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  // Verify 2FA
+  const verify2FA = useCallback(async (payload: { email: string; code: string }) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const result = await authService.verify2FA(payload);
+      handleAuthResult(result, 'user');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Doğrulama başarısız';
+      setError(message);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [handleAuthResult]);
+
+  // Forgot Password
+  const forgotPassword = useCallback(async (payload: { email: string }) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      await authService.forgotPassword(payload.email);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'İşlem başarısız';
+      setError(message);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  // Reset Password
+  const resetPassword = useCallback(async (payload: { email: string; code: string; newPassword: string }) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      await authService.resetPassword(payload);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Şifre sıfırlama başarısız';
+      setError(message);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   // Logout
   const logout = useCallback(async () => {
@@ -196,6 +280,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     logout,
     refreshAuth,
     clearError,
+    activate,
+    verify2FA,
+    forgotPassword,
+    resetPassword,
   }), [
     user,
     token,
@@ -210,6 +298,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     logout,
     refreshAuth,
     clearError,
+    activate,
+    verify2FA,
+    forgotPassword,
+    resetPassword,
   ]);
 
   return (

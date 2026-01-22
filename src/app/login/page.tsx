@@ -13,10 +13,12 @@ import styles from './page.module.css';
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { adminLogin } = useAuth();
+  const { adminLogin, verify2FA } = useAuth();
   
+  const [step, setStep] = useState<'login' | '2fa'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -28,11 +30,20 @@ function LoginForm() {
     setError('');
 
     try {
-      await adminLogin({ email, password });
-      router.push(redirectPath);
+      if (step === 'login') {
+        const response = await adminLogin({ email, password });
+        if (response && response.require2FA) {
+          setStep('2fa');
+        } else {
+          router.push(redirectPath);
+        }
+      } else {
+        await verify2FA({ email, code });
+        router.push(redirectPath);
+      }
     } catch (err: any) {
       console.error(err);
-      setError(err.message || 'Giriş başarısız. Bilgilerinizi kontrol edin.');
+      setError(err.message || 'İşlem başarısız. Lütfen tekrar deneyin.');
     } finally {
       setIsLoading(false);
     }
@@ -46,7 +57,9 @@ function LoginForm() {
             <LayoutDashboard size={32} />
           </div>
           <h1 className={styles.title}>Faber Admin</h1>
-          <p className={styles.subtitle}>Yönetim paneline giriş yapın</p>
+          <p className={styles.subtitle}>
+            {step === 'login' ? 'Yönetim paneline giriş yapın' : '2FA Doğrulama Kodu'}
+          </p>
         </div>
 
         {error && (
@@ -57,31 +70,49 @@ function LoginForm() {
         )}
 
         <form onSubmit={handleSubmit} className={styles.form}>
-          <div className={styles.field}>
-            <label className={styles.label}>E-posta</label>
-            <input
-              type="email"
-              required
-              className={styles.input}
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="admin@faber.app"
-              disabled={isLoading}
-            />
-          </div>
+          {step === 'login' ? (
+            <>
+              <div className={styles.field}>
+                <label className={styles.label}>E-posta</label>
+                <input
+                  type="email"
+                  required
+                  className={styles.input}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="admin@faber.app"
+                  disabled={isLoading}
+                />
+              </div>
 
-          <div className={styles.field}>
-            <label className={styles.label}>Şifre</label>
-            <input
-              type="password"
-              required
-              className={styles.input}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              disabled={isLoading}
-            />
-          </div>
+              <div className={styles.field}>
+                <label className={styles.label}>Şifre</label>
+                <input
+                  type="password"
+                  required
+                  className={styles.input}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  disabled={isLoading}
+                />
+              </div>
+            </>
+          ) : (
+            <div className={styles.field}>
+              <label className={styles.label}>Doğrulama Kodu</label>
+              <input
+                type="text"
+                required
+                className={styles.input}
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                placeholder="6 haneli kod"
+                maxLength={6}
+                disabled={isLoading}
+              />
+            </div>
+          )}
 
           <button
             type="submit"
@@ -91,19 +122,28 @@ function LoginForm() {
             {isLoading ? (
               <>
                 <Loader2 size={18} className={styles.spinner} />
-                <span>Giriş Yapılıyor...</span>
+                <span>İşleniyor...</span>
               </>
             ) : (
-              'Giriş Yap'
+              step === 'login' ? 'Giriş Yap' : 'Doğrula'
             )}
           </button>
         </form>
 
         <div className={styles.footer}>
-          Hesabınız yok mu?{' '}
-          <Link href="/register" className={styles.link}>
-            Kayıt Ol
-          </Link>
+          {step === 'login' && (
+            <>
+              Hesabınız yok mu?{' '}
+              <Link href="/register" className={styles.link}>
+                Kayıt Ol
+              </Link>
+            </>
+          )}
+          {step === '2fa' && (
+            <div className={styles.backLink} onClick={() => setStep('login')}>
+              Giriş ekranına dön
+            </div>
+          )}
         </div>
       </div>
     </div>

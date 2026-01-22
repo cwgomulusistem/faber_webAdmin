@@ -47,6 +47,28 @@ export interface RegisterPayload {
   email: string;
   password: string;
   fullName?: string;
+  tenantSlug?: string;
+  phone?: string;
+}
+
+export interface ActivatePayload {
+  email: string;
+  code: string;
+}
+
+export interface Verify2FAPayload {
+  email: string;
+  code: string;
+}
+
+export interface ForgotPasswordPayload {
+  email: string;
+}
+
+export interface ResetPasswordPayload {
+  email: string;
+  code: string;
+  newPassword: string;
 }
 
 export interface GoogleLoginPayload {
@@ -72,9 +94,13 @@ export interface AuthState {
 }
 
 export interface AuthContextType extends AuthState {
-  login: (payload: LoginPayload) => Promise<void>;
-  adminLogin: (payload: LoginPayload) => Promise<void>;
-  register: (payload: RegisterPayload) => Promise<void>;
+  login: (payload: LoginPayload) => Promise<{ require2FA?: boolean } | void>;
+  adminLogin: (payload: LoginPayload) => Promise<{ require2FA?: boolean } | void>;
+  register: (payload: RegisterPayload) => Promise<{ requireActivation?: boolean } | void>;
+  activate: (payload: ActivatePayload) => Promise<void>;
+  verify2FA: (payload: Verify2FAPayload) => Promise<void>;
+  forgotPassword: (payload: ForgotPasswordPayload) => Promise<void>;
+  resetPassword: (payload: ResetPasswordPayload) => Promise<void>;
   googleLogin: (payload: GoogleLoginPayload) => Promise<void>;
   logout: () => Promise<void>;
   refreshAuth: () => Promise<void>;

@@ -12,11 +12,15 @@ import styles from '../login/page.module.css'; // Reuse login styles
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { register } = useAuth();
+  const { register, activate } = useAuth();
   
+  const [step, setStep] = useState<'register' | 'activate'>('register');
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [phone, setPhone] = useState('');
+  const [tenantSlug, setTenantSlug] = useState('');
+  const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -26,12 +30,27 @@ export default function RegisterPage() {
     setError('');
 
     try {
-      await register({ email, password, fullName });
-      // Registration successful, redirect to login or dashboard
-      router.push('/dashboard');
+      if (step === 'register') {
+        const result = await register({ 
+          email, 
+          password, 
+          fullName,
+          phone: phone || undefined,
+          tenantSlug: tenantSlug || undefined
+        });
+        
+        if (result && result.requireActivation) {
+          setStep('activate');
+        } else {
+          router.push('/dashboard');
+        }
+      } else {
+        await activate({ email, code });
+        router.push('/login'); // Redirect to login after activation
+      }
     } catch (err: any) {
       console.error(err);
-      setError(err.message || 'Kayıt başarısız. Lütfen tekrar deneyin.');
+      setError(err.message || 'İşlem başarısız. Lütfen tekrar deneyin.');
     } finally {
       setIsLoading(false);
     }
@@ -45,7 +64,9 @@ export default function RegisterPage() {
             <LayoutDashboard size={32} />
           </div>
           <h1 className={styles.title}>Kayıt Ol</h1>
-          <p className={styles.subtitle}>Faber Admin hesabı oluşturun</p>
+          <p className={styles.subtitle}>
+            {step === 'register' ? 'Faber Admin hesabı oluşturun' : 'Hesap Aktivasyonu'}
+          </p>
         </div>
 
         {error && (
@@ -56,45 +77,90 @@ export default function RegisterPage() {
         )}
 
         <form onSubmit={handleSubmit} className={styles.form}>
-        <div className={styles.field}>
-            <label className={styles.label}>Ad Soyad</label>
-            <input
-              type="text"
-              required
-              className={styles.input}
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              placeholder="Adınız Soyadınız"
-              disabled={isLoading}
-            />
-          </div>
+          {step === 'register' ? (
+            <>
+              <div className={styles.field}>
+                <label className={styles.label}>Ad Soyad</label>
+                <input
+                  type="text"
+                  required
+                  className={styles.input}
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  placeholder="Adınız Soyadınız"
+                  disabled={isLoading}
+                />
+              </div>
 
-          <div className={styles.field}>
-            <label className={styles.label}>E-posta</label>
-            <input
-              type="email"
-              required
-              className={styles.input}
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="ornek@email.com"
-              disabled={isLoading}
-            />
-          </div>
+              <div className={styles.field}>
+                <label className={styles.label}>E-posta</label>
+                <input
+                  type="email"
+                  required
+                  className={styles.input}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="ornek@email.com"
+                  disabled={isLoading}
+                />
+              </div>
 
-          <div className={styles.field}>
-            <label className={styles.label}>Şifre</label>
-            <input
-              type="password"
-              required
-              className={styles.input}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="En az 6 karakter"
-              minLength={6}
-              disabled={isLoading}
-            />
-          </div>
+              <div className={styles.field}>
+                <label className={styles.label}>Şifre</label>
+                <input
+                  type="password"
+                  required
+                  className={styles.input}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="En az 6 karakter"
+                  minLength={6}
+                  disabled={isLoading}
+                />
+              </div>
+
+              <div className={styles.field}>
+                <label className={styles.label}>Telefon (İsteğe bağlı)</label>
+                <input
+                  type="tel"
+                  className={styles.input}
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="+90 555 123 45 67"
+                  disabled={isLoading}
+                />
+              </div>
+
+              <div className={styles.field}>
+                <label className={styles.label}>Firma Kodu (Slug - İsteğe bağlı)</label>
+                <input
+                  type="text"
+                  className={styles.input}
+                  value={tenantSlug}
+                  onChange={(e) => setTenantSlug(e.target.value)}
+                  placeholder="firma-adi"
+                  disabled={isLoading}
+                />
+              </div>
+            </>
+          ) : (
+            <div className={styles.field}>
+              <label className={styles.label}>Aktivasyon Kodu</label>
+              <input
+                type="text"
+                required
+                className={styles.input}
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                placeholder="6 haneli kod"
+                maxLength={6}
+                disabled={isLoading}
+              />
+              <p className={styles.hint}>
+                E-posta veya telefonunuza gönderilen kodu giriniz.
+              </p>
+            </div>
+          )}
 
           <button
             type="submit"
@@ -104,19 +170,28 @@ export default function RegisterPage() {
             {isLoading ? (
               <>
                 <Loader2 size={18} className={styles.spinner} />
-                <span>Kayıt Olunuyor...</span>
+                <span>İşleniyor...</span>
               </>
             ) : (
-              'Kayıt Ol'
+              step === 'register' ? 'Kayıt Ol' : 'Aktive Et'
             )}
           </button>
         </form>
 
         <div className={styles.footer}>
-          Zaten hesabınız var mı?{' '}
-          <Link href="/login" className={styles.link}>
-            Giriş Yap
-          </Link>
+          {step === 'register' && (
+            <>
+              Zaten hesabınız var mı?{' '}
+              <Link href="/login" className={styles.link}>
+                Giriş Yap
+              </Link>
+            </>
+          )}
+          {step === 'activate' && (
+            <div className={styles.backLink} onClick={() => setStep('register')}>
+              Geri dön
+            </div>
+          )}
         </div>
       </div>
     </div>

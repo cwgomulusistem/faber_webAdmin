@@ -24,17 +24,23 @@ export const authService = {
    * User login
    * POST /api/v1/auth/login
    */
-  async login(payload: LoginPayload): Promise<AuthResult> {
-    const response = await api.post<ApiResponse<TokenResponse>>('/auth/login', payload);
-    const data = response.data.data!;
+  async login(payload: LoginPayload): Promise<{ result?: AuthResult; require2FA?: boolean }> {
+    const response = await api.post<ApiResponse<TokenResponse | { message: string }>>('/auth/login', payload);
     
+    if (response.status === 202) {
+      return { require2FA: true };
+    }
+
+    const data = response.data.data as TokenResponse;
     tokenManager.setTokens(data.token, data.refresh_token);
     
     return {
-      user: data.user!,
-      token: data.token,
-      refreshToken: data.refresh_token,
-      expiresIn: data.expires_in,
+      result: {
+        user: data.user!,
+        token: data.token,
+        refreshToken: data.refresh_token,
+        expiresIn: data.expires_in,
+      }
     };
   },
   
@@ -42,8 +48,57 @@ export const authService = {
    * Admin login
    * POST /api/v1/auth/admin/login
    */
-  async adminLogin(payload: LoginPayload): Promise<AuthResult> {
-    const response = await api.post<ApiResponse<TokenResponse>>('/auth/admin/login', payload);
+  async adminLogin(payload: LoginPayload): Promise<{ result?: AuthResult; require2FA?: boolean }> {
+    const response = await api.post<ApiResponse<TokenResponse | { message: string }>>('/auth/login', payload);
+    
+    if (response.status === 202) {
+      return { require2FA: true };
+    }
+
+    const data = response.data.data as TokenResponse;
+    tokenManager.setTokens(data.token, data.refresh_token);
+    
+    return {
+      result: {
+        user: data.user!,
+        token: data.token,
+        refreshToken: data.refresh_token,
+        expiresIn: data.expires_in,
+      }
+    };
+  },
+  
+  /**
+   * User registration
+   * POST /api/v1/auth/register
+   */
+  async register(payload: RegisterPayload): Promise<{ id: string; requireActivation?: boolean }> {
+    const response = await api.post<ApiResponse<{ id?: string; userId?: string; message: string }>>(
+      '/auth/register',
+      payload
+    );
+
+    if (response.status === 202) {
+      return { id: response.data.data?.userId || '', requireActivation: true };
+    }
+
+    return { id: response.data.data?.id || '' };
+  },
+
+  /**
+   * Activate account
+   * POST /api/v1/auth/activate
+   */
+  async activate(payload: { email: string; code: string }): Promise<void> {
+    await api.post('/auth/activate', payload);
+  },
+
+  /**
+   * Verify 2FA
+   * POST /api/v1/auth/verify-2fa
+   */
+  async verify2FA(payload: { email: string; code: string }): Promise<AuthResult> {
+    const response = await api.post<ApiResponse<TokenResponse>>('/auth/verify-2fa', payload);
     const data = response.data.data!;
     
     tokenManager.setTokens(data.token, data.refresh_token);
@@ -55,17 +110,21 @@ export const authService = {
       expiresIn: data.expires_in,
     };
   },
-  
+
   /**
-   * User registration
-   * POST /api/v1/auth/register
+   * Forgot Password
+   * POST /api/v1/auth/forgot-password
    */
-  async register(payload: RegisterPayload): Promise<{ id: string; email: string }> {
-    const response = await api.post<ApiResponse<{ id: string; email: string; message: string }>>(
-      '/auth/register',
-      payload
-    );
-    return response.data.data!;
+  async forgotPassword(email: string): Promise<void> {
+    await api.post('/auth/forgot-password', { email });
+  },
+
+  /**
+   * Reset Password
+   * POST /api/v1/auth/reset-password
+   */
+  async resetPassword(payload: { email: string; code: string; newPassword: string }): Promise<void> {
+    await api.post('/auth/reset-password', payload);
   },
   
   /**
@@ -103,7 +162,7 @@ export const authService = {
    * GET /api/v1/auth/me
    */
   async getCurrentUser(): Promise<User | AdminUser> {
-    const response = await api.get<ApiResponse<User | AdminUser>>('/auth/me');
+    const response = await api.get<ApiResponse<User | AdminUser>>('/auth/profile');
     return response.data.data!;
   },
   
