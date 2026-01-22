@@ -23,9 +23,17 @@ export const authService = {
   /**
    * User login
    * POST /api/v1/auth/login
+   * Includes device binding (clientId, clientType) for token security
    */
   async login(payload: LoginPayload): Promise<{ result?: AuthResult; require2FA?: boolean }> {
-    const response = await api.post<ApiResponse<TokenResponse | { message: string }>>('/auth/login', payload);
+    // Add device binding info to login request
+    const loginPayload = {
+      ...payload,
+      clientId: tokenManager.getClientId(),
+      clientType: tokenManager.getClientType(),
+    };
+    
+    const response = await api.post<ApiResponse<TokenResponse | { message: string }>>('/auth/login', loginPayload);
     
     if (response.status === 202) {
       return { require2FA: true };
@@ -47,9 +55,17 @@ export const authService = {
   /**
    * Admin login
    * POST /api/v1/auth/admin/login
+   * Includes device binding (clientId, clientType) for token security
    */
   async adminLogin(payload: LoginPayload): Promise<{ result?: AuthResult; require2FA?: boolean }> {
-    const response = await api.post<ApiResponse<TokenResponse | { message: string }>>('/auth/login', payload);
+    // Add device binding info to login request
+    const loginPayload = {
+      ...payload,
+      clientId: tokenManager.getClientId(),
+      clientType: tokenManager.getClientType(),
+    };
+    
+    const response = await api.post<ApiResponse<TokenResponse | { message: string }>>('/auth/login', loginPayload);
     
     if (response.status === 202) {
       return { require2FA: true };
@@ -71,11 +87,19 @@ export const authService = {
   /**
    * User registration
    * POST /api/v1/auth/register
+   * Includes device binding (clientId, clientType) for token security
    */
   async register(payload: RegisterPayload): Promise<{ id: string; requireActivation?: boolean }> {
+    // Add device binding info to register request
+    const registerPayload = {
+      ...payload,
+      clientId: tokenManager.getClientId(),
+      clientType: tokenManager.getClientType(),
+    };
+    
     const response = await api.post<ApiResponse<{ id?: string; userId?: string; message: string }>>(
       '/auth/register',
-      payload
+      registerPayload
     );
 
     if (response.status === 202) {
@@ -88,17 +112,32 @@ export const authService = {
   /**
    * Activate account
    * POST /api/v1/auth/activate
+   * Includes device binding (clientId, clientType) for token security
    */
   async activate(payload: { email: string; code: string }): Promise<void> {
-    await api.post('/auth/activate', payload);
+    // Add device binding info to activate request
+    const activatePayload = {
+      ...payload,
+      clientId: tokenManager.getClientId(),
+      clientType: tokenManager.getClientType(),
+    };
+    await api.post('/auth/activate', activatePayload);
   },
 
   /**
    * Verify 2FA
    * POST /api/v1/auth/verify-2fa
+   * Includes device binding (clientId, clientType) for token security
    */
   async verify2FA(payload: { email: string; code: string }): Promise<AuthResult> {
-    const response = await api.post<ApiResponse<TokenResponse>>('/auth/verify-2fa', payload);
+    // Add device binding info to 2FA verification request
+    const verify2FAPayload = {
+      ...payload,
+      clientId: tokenManager.getClientId(),
+      clientType: tokenManager.getClientType(),
+    };
+    
+    const response = await api.post<ApiResponse<TokenResponse>>('/auth/verify-2fa', verify2FAPayload);
     const data = response.data.data!;
     
     tokenManager.setTokens(data.token, data.refresh_token);

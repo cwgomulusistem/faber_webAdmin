@@ -1,14 +1,18 @@
 // API Service with Interceptors
 // Inspired by frontend-dev connection patterns and faber_backend auth flow
+// Implements Device Binding (Token Binding) for bank-level security
 
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import Cookies from 'js-cookie';
+import { v4 as uuidv4 } from 'uuid';
 import env from '../config/env';
 import type { ApiResponse, TokenResponse } from '../types/api.types';
 
 // Token storage keys
 const TOKEN_KEY = 'admin_token';
 const REFRESH_TOKEN_KEY = 'admin_refresh_token';
+const CLIENT_ID_KEY = 'faber_client_id'; // Device binding - unique client identifier
+const CLIENT_TYPE = 'WEB' as const; // WEB or MOBILE
 
 // Create axios instance
 const api = axios.create({
@@ -19,10 +23,26 @@ const api = axios.create({
   },
 });
 
+// Generate or retrieve persistent Client ID for device binding
+// This ID is generated once per browser/device and persisted in localStorage
+// It binds the JWT token to this specific device - stolen tokens won't work on other devices
+const getOrCreateClientId = (): string => {
+  if (typeof window === 'undefined') return '';
+  
+  let clientId = localStorage.getItem(CLIENT_ID_KEY);
+  if (!clientId) {
+    clientId = uuidv4();
+    localStorage.setItem(CLIENT_ID_KEY, clientId);
+  }
+  return clientId;
+};
+
 // Token management utilities
 export const tokenManager = {
   getToken: (): string | undefined => Cookies.get(TOKEN_KEY),
   getRefreshToken: (): string | undefined => Cookies.get(REFRESH_TOKEN_KEY),
+  getClientId: (): string => getOrCreateClientId(),
+  getClientType: (): typeof CLIENT_TYPE => CLIENT_TYPE,
   
   setTokens: (token: string, refreshToken: string): void => {
     // Token expires in 15 minutes, refresh in 7 days
@@ -33,6 +53,7 @@ export const tokenManager = {
   clearTokens: (): void => {
     Cookies.remove(TOKEN_KEY);
     Cookies.remove(REFRESH_TOKEN_KEY);
+    // Note: We do NOT clear CLIENT_ID_KEY - it's device-bound, not session-bound
   },
   
   isAuthenticated: (): boolean => !!Cookies.get(TOKEN_KEY),
@@ -51,13 +72,22 @@ const onTokenRefreshed = (token: string): void => {
   refreshSubscribers = [];
 };
 
-// Request Interceptor: Add Authorization header and home info
+// Request Interceptor: Add Authorization header, home info, and device binding
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const token = tokenManager.getToken();
     
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
+    }
+    
+    // Add X-Client-ID header for device binding (REQUIRED for authenticated requests)
+    // This binds the token to this specific device - prevents token replay attacks
+    if (config.headers) {
+      const clientId = tokenManager.getClientId();
+      if (clientId) {
+        config.headers['X-Client-ID'] = clientId;
+      }
     }
     
     // Add home ID header if available (from localStorage, set by HomeContext)
@@ -116,9 +146,17 @@ api.interceptors.response.use(
     isRefreshing = true;
     
     try {
+      // Include device binding info in refresh request
+      const clientId = tokenManager.getClientId();
+      const clientType = tokenManager.getClientType();
+      
       const response = await axios.post<ApiResponse<TokenResponse>>(
         `${env.API_URL}/api/v1/auth/refresh`,
-        { refresh_token: refreshToken },
+        { 
+          refreshToken: refreshToken,
+          clientId: clientId,
+          clientType: clientType
+        },
         { headers: { 'Content-Type': 'application/json' } }
       );
       

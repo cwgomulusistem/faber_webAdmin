@@ -19,7 +19,6 @@ export default function RegisterPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [phone, setPhone] = useState('');
-  const [tenantSlug, setTenantSlug] = useState('');
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -35,8 +34,7 @@ export default function RegisterPage() {
           email, 
           password, 
           fullName,
-          phone: phone || undefined,
-          tenantSlug: tenantSlug || undefined
+          phone // Telefon artık zorunlu
         });
         
         if (result && result.requireActivation) {
@@ -120,25 +118,14 @@ export default function RegisterPage() {
               </div>
 
               <div className={styles.field}>
-                <label className={styles.label}>Telefon (İsteğe bağlı)</label>
+                <label className={styles.label}>Telefon</label>
                 <input
                   type="tel"
+                  required
                   className={styles.input}
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="+90 555 123 45 67"
-                  disabled={isLoading}
-                />
-              </div>
-
-              <div className={styles.field}>
-                <label className={styles.label}>Firma Kodu (Slug - İsteğe bağlı)</label>
-                <input
-                  type="text"
-                  className={styles.input}
-                  value={tenantSlug}
-                  onChange={(e) => setTenantSlug(e.target.value)}
-                  placeholder="firma-adi"
                   disabled={isLoading}
                 />
               </div>

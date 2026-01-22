@@ -21,7 +21,6 @@ export interface AdminUser {
   fullName: string;
   role: AdminRole;
   isActive: boolean;
-  tenantId?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -34,7 +33,6 @@ export enum AuthProvider {
 
 export enum AdminRole {
   SUPER_ADMIN = 'SUPER_ADMIN',
-  TENANT_ADMIN = 'TENANT_ADMIN',
   SUPPORT = 'SUPPORT',
 }
 
@@ -47,8 +45,7 @@ export interface RegisterPayload {
   email: string;
   password: string;
   fullName?: string;
-  tenantSlug?: string;
-  phone?: string;
+  phone: string; // Telefon artık zorunlu
 }
 
 export interface ActivatePayload {
