@@ -218,89 +218,84 @@ function DashboardHeader({ editMode, onToggleEditMode, onAddSection }: Dashboard
   const { isDarkMode, toggleTheme } = useTheme();
   
   return (
-    <header className="sticky top-0 z-30 bg-gray-50/80 backdrop-blur-lg border-b border-gray-200/50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          {/* Left: Home Selector */}
-          <HomeSelector
-            homes={[
-              { id: 'home-1', name: 'Evim' },
-              { id: 'home-2', name: 'Yazlık' },
-              { id: 'home-3', name: 'Ofis' },
-            ]}
-            activeHome="home-1"
-            onSelect={() => {}}
-          />
-          
-          {/* Center: Search (Desktop) */}
-          <div className="hidden md:flex flex-1 max-w-md mx-8">
-            <div className="relative w-full">
-              <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Cihaz veya oda ara..."
-                className={cn(
-                  'w-full pl-10 pr-4 py-2.5 rounded-xl',
-                  'bg-white border border-gray-200',
-                  'focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20',
-                  'outline-none transition-all',
-                  'text-gray-900 placeholder:text-gray-400'
-                )}
-              />
-            </div>
+    <header className="h-20 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-8 shrink-0 z-20 sticky top-0">
+      <div className="flex flex-col">
+        <h1 className="text-xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
+        <div className="flex items-center gap-2 text-xs text-gray-500">
+          <span className="hover:text-primary cursor-pointer">Home</span>
+          <span>/</span>
+          <span>Overview</span>
+        </div>
+      </div>
+      
+      {/* Center: Search */}
+      <div className="flex-1 max-w-2xl px-12">
+        <div className="relative group">
+          <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+            <Search className="w-4 h-4 text-gray-400 group-focus-within:text-primary transition-colors" />
           </div>
-          
-          {/* Right: Actions */}
-          <div className="flex items-center gap-2">
-            {/* Connection Status */}
-            <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-green-100 text-green-700 text-xs font-medium">
-              <Wifi size={14} />
-              Bağlı
-            </div>
-            
-            {/* Theme Toggle */}
-            <button
-              onClick={toggleTheme}
-              className="p-2.5 rounded-xl hover:bg-white hover:shadow-sm text-gray-500 hover:text-gray-700 transition-all"
-            >
-              {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
-            </button>
-            
-            {/* Notifications */}
-            <button className="relative p-2.5 rounded-xl hover:bg-white hover:shadow-sm text-gray-500 hover:text-gray-700 transition-all">
-              <Bell size={20} />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full" />
-            </button>
-            
-            {/* Edit Mode Toggle */}
-            {editMode ? (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={onAddSection}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 font-medium transition-all"
-                >
-                  <Plus size={18} />
-                  <span className="hidden sm:inline">Bölüm Ekle</span>
-                </button>
-                <button
-                  onClick={onToggleEditMode}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-500 text-white hover:bg-blue-600 font-medium shadow-lg shadow-blue-500/25 transition-all"
-                >
-                  <Check size={18} />
-                  <span className="hidden sm:inline">Bitti</span>
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={onToggleEditMode}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 font-medium transition-all"
-              >
-                <Pencil size={18} />
-                <span className="hidden sm:inline">Düzenle</span>
-              </button>
+          <input
+            type="text"
+            placeholder="Search devices, rooms, or scenes..."
+            className={cn(
+              'block w-full pl-11 pr-14 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl',
+              'bg-gray-50 dark:bg-gray-800 text-sm',
+              'focus:ring-2 focus:ring-primary/20 focus:border-primary',
+              'dark:text-gray-200 placeholder-gray-400 transition shadow-sm'
             )}
+          />
+          <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+            <span className="text-[10px] font-bold text-gray-400 border border-gray-200 dark:border-gray-600 rounded-md px-1.5 py-0.5 bg-white dark:bg-gray-700">CTRL K</span>
           </div>
         </div>
+      </div>
+      
+      {/* Right: Actions */}
+      <div className="flex items-center gap-4">
+        {/* System Status */}
+        <div className="hidden xl:flex flex-col items-end mr-2">
+          <span className="text-xs font-bold text-gray-700 dark:text-gray-200">System Status</span>
+          <div className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+            <span className="text-xs text-green-600 dark:text-green-400 font-medium">Online</span>
+          </div>
+        </div>
+        
+        <div className="h-8 w-px bg-gray-200 dark:bg-gray-700 mx-2"></div>
+        
+        {/* Notifications */}
+        <button className="p-2.5 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition dark:text-gray-400 relative">
+          <Bell className="w-5 h-5" />
+          <span className="absolute top-2 right-2.5 h-2 w-2 bg-red-500 rounded-full border-2 border-white dark:border-gray-900"></span>
+        </button>
+        
+        {/* Edit Mode Toggle */}
+        {editMode ? (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onAddSection}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 font-medium transition-all"
+            >
+              <Plus size={18} />
+              <span className="hidden sm:inline">Add Section</span>
+            </button>
+            <button
+              onClick={onToggleEditMode}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-500 text-white hover:bg-blue-600 font-medium shadow-lg shadow-blue-500/25 transition-all"
+            >
+              <Check size={18} />
+              <span className="hidden sm:inline">Done</span>
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={onToggleEditMode}
+            className="flex items-center gap-2 bg-gray-900 dark:bg-white text-white dark:text-gray-900 px-5 py-2.5 rounded-xl hover:bg-gray-800 dark:hover:bg-gray-100 transition shadow-lg shadow-gray-200 dark:shadow-none"
+          >
+            <Pencil className="w-4 h-4" />
+            <span className="text-sm font-semibold">Düzenle</span>
+          </button>
+        )}
       </div>
     </header>
   );
@@ -567,7 +562,7 @@ function DashboardContent() {
   }, []);
   
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="flex flex-col h-full overflow-hidden bg-background-light dark:bg-background-dark">
       {/* Header */}
       <DashboardHeader
         editMode={editMode}
@@ -582,21 +577,21 @@ function DashboardContent() {
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="bg-blue-50 border-b border-blue-100 overflow-hidden"
+            className="bg-blue-50 dark:bg-blue-900/20 border-b border-blue-100 dark:border-blue-900/30 overflow-hidden shrink-0"
           >
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
-              <div className="flex items-center gap-3 text-blue-700">
+              <div className="flex items-center gap-3 text-blue-700 dark:text-blue-300">
                 <Pencil size={18} />
                 <span className="font-medium">Düzenleme Modu</span>
-                <span className="text-blue-600 text-sm">• Bölümleri ve widget'ları sürükleyerek taşıyabilirsiniz</span>
+                <span className="text-blue-600 dark:text-blue-400 text-sm">• Bölümleri ve widgetları sürükleyerek taşıyabilirsiniz</span>
               </div>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
       
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* Main Content - Scrollable */}
+      <main className="flex-1 overflow-y-auto p-8 scroll-smooth">
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
