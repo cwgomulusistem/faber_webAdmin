@@ -14,35 +14,49 @@ export default function RoomsPage() {
   const handleBack = () => router.back();
 
   useEffect(() => {
-    const fetchRooms = async () => {
+    const fetchData = async () => {
       try {
         const activeHomeId = localStorage.getItem('faber_active_home_id');
         if (!activeHomeId) { setLoading(false); return; }
 
-        const res = await api.get(`/homes/${activeHomeId}/rooms`);
-        setRooms(res.data || []);
+        const [roomsRes, devicesRes] = await Promise.all([
+          api.get(`/homes/${activeHomeId}/rooms`),
+          api.get(`/homes/${activeHomeId}/devices`)
+        ]);
+
+        const rawRooms = roomsRes.data || [];
+        const allDevices = devicesRes.data || [];
+
+        const enhancedRooms = rawRooms.map((room: any) => ({
+          ...room,
+          deviceCount: allDevices.filter((d: any) => d.roomId === room.id).length,
+          // Check if any device in the room has temperature capability for "room temp"
+          temperature: allDevices.find((d: any) => d.roomId === room.id && d.attributes?.temperature)?.attributes?.temperature
+        }));
+
+        setRooms(enhancedRooms);
       } catch (err) {
-        console.error("Failed to fetch rooms", err);
+        console.error("Failed to fetch rooms data", err);
       } finally {
         setLoading(false);
       }
     };
-    fetchRooms();
+    fetchData();
   }, []);
 
   return (
     <div className="flex flex-col h-full bg-background-light dark:bg-background-dark overflow-hidden">
       <header className="flex items-center justify-between px-8 py-6 shrink-0 bg-white dark:bg-surface-dark border-b border-slate-200 dark:border-slate-800">
         <div className="flex items-center gap-4">
-          <button onClick={handleBack} className="md:hidden p-2"><MapPin /></button> {/* Mobile back fallback */}
+          <button onClick={handleBack} className="md:hidden p-2"><MapPin /></button>
           <div className="hidden md:flex gap-2 items-center text-sm text-slate-500">
-            <span className="hover:text-primary cursor-pointer" onClick={() => router.push('/dashboard')}>Home</span>
+            <span className="hover:text-primary cursor-pointer" onClick={() => router.push('/dashboard')}>Ana Sayfa</span>
             <span>/</span>
-            <span className="text-slate-900 dark:text-white font-medium">Rooms</span>
+            <span className="text-slate-900 dark:text-white font-medium">Odalar</span>
           </div>
         </div>
         <div className="flex flex-1 justify-end gap-4 items-center">
-          <button onClick={handleBack} className="hidden md:block px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">Back</button>
+          <button onClick={handleBack} className="hidden md:block px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">Geri</button>
         </div>
       </header>
 
@@ -50,24 +64,24 @@ export default function RoomsPage() {
         <div className="max-w-[1200px] mx-auto flex flex-col gap-6">
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
             <div className="flex flex-col gap-1">
-              <h2 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">My Rooms</h2>
-              <p className="text-slate-500 dark:text-slate-400">Monitor environmental stats and manage connected devices.</p>
+              <h2 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">Odalarım</h2>
+              <p className="text-slate-500 dark:text-slate-400">Oda durumlarını izleyin ve cihazları yönetin.</p>
             </div>
             <div className="flex items-center gap-3">
               <button className="flex items-center justify-center gap-2 rounded-lg h-10 px-4 bg-primary text-white text-sm font-bold shadow-lg shadow-primary/20 hover:bg-blue-600 transition-all active:scale-95">
                 <Plus size={20} />
-                <span>Add Room</span>
+                <span>Oda Ekle</span>
               </button>
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {loading ? (
-              <p className="text-slate-500">Loading rooms...</p>
+              <p className="text-slate-500">Odalar yükleniyor...</p>
             ) : rooms.length === 0 ? (
               <div className="col-span-full py-10 text-center bg-slate-50 dark:bg-slate-900 rounded-xl border border-dashed border-slate-300">
-                <p className="text-slate-500 mb-4">No rooms found.</p>
-                <button className="text-primary font-bold hover:underline">Create your first room</button>
+                <p className="text-slate-500 mb-4">Henüz oda eklenmemiş.</p>
+                <button className="text-primary font-bold hover:underline">İlk odanızı oluşturun</button>
               </div>
             ) : (
               rooms.map((room) => (
@@ -82,16 +96,14 @@ export default function RoomsPage() {
 }
 
 function RoomCard({ room }: { room: any }) {
-  // Generate random mock stats if fetch didn't provide them (for visual completeness as requested)
-  // In real app, these come from sensor aggregation
-  const temp = room.temperature || 72;
-  const humidity = room.humidity || 45;
+  // Use real data or placeholders indicating "No Data" (-)
+  const temp = room.temperature !== undefined ? `${room.temperature}°` : '-';
+  const humidity = room.humidity !== undefined ? `${room.humidity}%` : '-';
   const deviceCount = room.deviceCount || 0;
 
   return (
     <div className="group flex flex-col bg-white dark:bg-surface-dark rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 border border-transparent hover:border-primary/20">
       <div className="h-40 bg-slate-200 dark:bg-slate-800 relative overflow-hidden">
-        {/* Image placeholder or actual image if available */}
         {room.image ? (
           <img src={room.image} alt={room.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
         ) : (
@@ -110,25 +122,25 @@ function RoomCard({ room }: { room: any }) {
             <div className="bg-orange-100 dark:bg-orange-900/30 p-1.5 rounded-full text-orange-600 dark:text-orange-400">
               <Thermometer size={20} />
             </div>
-            <span className="font-semibold">{temp}°F</span>
+            <span className="font-semibold">{temp}</span>
           </div>
           <div className="w-px h-8 bg-slate-200 dark:bg-slate-700"></div>
           <div className="flex items-center gap-2 text-slate-900 dark:text-white">
             <div className="bg-blue-100 dark:bg-blue-900/30 p-1.5 rounded-full text-blue-600 dark:text-blue-400">
               <Droplets size={20} />
             </div>
-            <span className="font-semibold">{humidity}%</span>
+            <span className="font-semibold">{humidity}</span>
           </div>
         </div>
 
         <div className="flex items-center justify-between text-sm">
           <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
-            <span>{deviceCount} Active Devices</span>
+            <span>{deviceCount} Cihaz</span>
           </div>
         </div>
 
         <button className="mt-2 w-full py-2 px-4 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium text-slate-900 dark:text-white hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-primary transition-colors">
-          Manage Room
+          Yönet
         </button>
       </div>
     </div>
