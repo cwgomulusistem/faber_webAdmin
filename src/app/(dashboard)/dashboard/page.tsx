@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -29,92 +29,44 @@ import { SectionCard } from '@/components/dashboard/SectionCard';
 import { WidgetCard } from '@/components/dashboard/WidgetCard';
 import type { Section, Widget, DashboardConfig } from '@/components/dashboard/types';
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
+import api from '@/services/api.service';
+import socketService from '@/services/socket.service';
 
 // ============================================
-// Mock Data - Demo Dashboard
+// Helper Mapping Functions
 // ============================================
 
-const INITIAL_DASHBOARD: DashboardConfig = {
-  id: 'main',
-  name: 'Ana Sayfa',
-  sections: [
-    {
-      id: 'section-study',
-      title: 'Çalışma Odası',
-      icon: 'study',
-      color: '#6366f1',
-      widgets: [
-        { id: 'w1', type: 'toggle', name: 'Masa Lambası', icon: 'light', state: 'on' },
-        { id: 'w2', type: 'slider', name: 'Tavan Işığı', icon: 'light', value: 75 },
-        { id: 'w3', type: 'sensor', name: 'Sıcaklık', icon: 'temperature', value: 22, unit: '°C' },
-        { id: 'w4', type: 'toggle', name: 'Klima', icon: 'climate', state: 'off' },
-      ],
-    },
-    {
-      id: 'section-outdoor',
-      title: 'Bahçe',
-      icon: 'outdoor',
-      color: '#22c55e',
-      widgets: [
-        { id: 'w5', type: 'toggle', name: 'Bahçe Işıkları', icon: 'light', state: 'on' },
-        { id: 'w6', type: 'toggle', name: 'Çim Sulama', icon: 'switch', state: 'off' },
-        { id: 'w7', type: 'scene', name: 'Akşam Modu', icon: 'scene' },
-      ],
-    },
-    {
-      id: 'section-kitchen',
-      title: 'Mutfak',
-      icon: 'kitchen',
-      color: '#f59e0b',
-      widgets: [
-        { id: 'w8', type: 'toggle', name: 'Tezgah Işığı', icon: 'light', state: 'on' },
-        { id: 'w9', type: 'sensor', name: 'Nem', icon: 'humidity', value: 45, unit: '%' },
-        { id: 'w10', type: 'toggle', name: 'Buzdolabı', icon: 'switch', state: 'on' },
-        { id: 'w11', type: 'climate', name: 'Klima', icon: 'climate', value: 21, state: 'Soğutma' },
-      ],
-    },
-    {
-      id: 'section-living',
-      title: 'Oturma Odası',
-      icon: 'living_room',
-      color: '#ec4899',
-      widgets: [
-        { id: 'w12', type: 'slider', name: 'Ana Işık', icon: 'light', value: 100 },
-        { id: 'w13', type: 'toggle', name: 'TV', icon: 'media', state: 'on' },
-        { id: 'w14', type: 'toggle', name: 'Hoparlör', icon: 'media', state: 'off' },
-        { id: 'w15', type: 'scene', name: 'Film Modu', icon: 'scene' },
-        { id: 'w16', type: 'scene', name: 'Parti Modu', icon: 'scene' },
-      ],
-    },
-    {
-      id: 'section-bedroom',
-      title: 'Yatak Odası',
-      icon: 'bedroom',
-      color: '#8b5cf6',
-      widgets: [
-        { id: 'w17', type: 'slider', name: 'Yatak Lambası', icon: 'light', value: 30 },
-        { id: 'w18', type: 'toggle', name: 'Gece Lambası', icon: 'light', state: 'on' },
-        { id: 'w19', type: 'sensor', name: 'Sıcaklık', icon: 'temperature', value: 20, unit: '°C' },
-      ],
-    },
-    {
-      id: 'section-bathroom',
-      title: 'Banyo',
-      icon: 'bathroom',
-      color: '#06b6d4',
-      widgets: [
-        { id: 'w20', type: 'toggle', name: 'Ayna Işığı', icon: 'light', state: 'off' },
-        { id: 'w21', type: 'toggle', name: 'Havalandırma', icon: 'fan', state: 'off' },
-        { id: 'w22', type: 'sensor', name: 'Nem', icon: 'humidity', value: 65, unit: '%' },
-      ],
-    },
-  ],
+const mapDeviceToWidget = (device: any): Widget => {
+  // Map backend device type to widget type
+  let type: any = 'toggle';
+  let icon = 'hardware';
+
+  const deviceType = device.type?.toLowerCase() || '';
+  if (deviceType.includes('light')) { type = 'toggle'; icon = 'light'; }
+  else if (deviceType.includes('switch') || deviceType.includes('socket')) { type = 'toggle'; icon = 'switch'; }
+  else if (deviceType.includes('therm') || deviceType.includes('heat')) { type = 'sensor'; icon = 'temperature'; }
+  else if (deviceType.includes('lock')) { type = 'toggle'; icon = 'lock'; }
+  else if (deviceType.includes('fan')) { type = 'toggle'; icon = 'fan'; }
+
+  // Check attributes
+  const isOn = device.attributes?.on === true;
+  const state = isOn ? 'on' : 'off';
+  const value = device.attributes?.temperature || device.attributes?.brightness || 0;
+  const unit = device.attributes?.unit || (icon === 'temperature' ? '°C' : '%');
+
+  return {
+    id: `w-${device.id}`, // Widget ID
+    entityId: device.id, // Real Device ID used for socket
+    type: type,
+    name: device.name,
+    icon: icon,
+    state: state,
+    value: value,
+    unit: unit
+  };
 };
 
-// ============================================
-// Home Selector Component
-// ============================================
-
+/* Unchanged Header Components */
 interface HomeSelectorProps {
   homes: { id: string; name: string }[];
   activeHome: string;
@@ -124,7 +76,7 @@ interface HomeSelectorProps {
 function HomeSelector({ homes, activeHome, onSelect }: HomeSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const current = homes.find(h => h.id === activeHome);
-  
+
   return (
     <div className="relative">
       <button
@@ -140,15 +92,15 @@ function HomeSelector({ homes, activeHome, onSelect }: HomeSelectorProps) {
           <Home size={16} />
         </div>
         <div className="text-left">
-          <div className="text-sm font-semibold text-gray-900">{current?.name}</div>
-          <div className="text-xs text-gray-500">2 kat • 6 oda</div>
+          <div className="text-sm font-semibold text-gray-900">{current?.name || 'Ev Seç'}</div>
+          <div className="text-xs text-gray-500">Aktif Konum</div>
         </div>
         <ChevronDown size={16} className={cn(
           'text-gray-400 transition-transform',
           isOpen && 'rotate-180'
         )} />
       </button>
-      
+
       <AnimatePresence>
         {isOpen && (
           <>
@@ -175,8 +127,8 @@ function HomeSelector({ homes, activeHome, onSelect }: HomeSelectorProps) {
                 >
                   <div className={cn(
                     'w-8 h-8 rounded-lg flex items-center justify-center',
-                    home.id === activeHome 
-                      ? 'bg-blue-500 text-white' 
+                    home.id === activeHome
+                      ? 'bg-blue-500 text-white'
                       : 'bg-gray-100 text-gray-500'
                   )}>
                     <Home size={16} />
@@ -187,15 +139,6 @@ function HomeSelector({ homes, activeHome, onSelect }: HomeSelectorProps) {
                   )}
                 </button>
               ))}
-              
-              <div className="border-t border-gray-100">
-                <button className="w-full flex items-center gap-3 px-4 py-3 text-blue-600 hover:bg-blue-50 transition-colors">
-                  <div className="w-8 h-8 rounded-lg border-2 border-dashed border-blue-300 flex items-center justify-center">
-                    <Plus size={16} />
-                  </div>
-                  <span className="font-medium">Yeni Ev Ekle</span>
-                </button>
-              </div>
             </motion.div>
           </>
         )}
@@ -204,31 +147,30 @@ function HomeSelector({ homes, activeHome, onSelect }: HomeSelectorProps) {
   );
 }
 
-// ============================================
-// Dashboard Header Component
-// ============================================
-
 interface DashboardHeaderProps {
   editMode: boolean;
   onToggleEditMode: () => void;
   onAddSection: () => void;
+  homes: any[];
+  activeHomeId: string;
+  onHomeChange: (id: string) => void;
 }
 
-function DashboardHeader({ editMode, onToggleEditMode, onAddSection }: DashboardHeaderProps) {
-  const { isDarkMode, toggleTheme } = useTheme();
-  
+function DashboardHeader({ editMode, onToggleEditMode, onAddSection, homes, activeHomeId, onHomeChange }: DashboardHeaderProps) {
   return (
     <header className="h-20 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-8 shrink-0 z-20 sticky top-0">
-      <div className="flex flex-col">
-        <h1 className="text-xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
-        <div className="flex items-center gap-2 text-xs text-gray-500">
-          <span className="hover:text-primary cursor-pointer">Home</span>
-          <span>/</span>
-          <span>Overview</span>
+      <div className="flex items-center gap-6">
+        <div className="flex flex-col">
+          <h1 className="text-xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
+          <div className="flex items-center gap-2 text-xs text-gray-500">
+            <span className="hover:text-primary cursor-pointer">Ana Sayfa</span>
+          </div>
         </div>
+        {homes.length > 0 && (
+          <HomeSelector homes={homes} activeHome={activeHomeId} onSelect={onHomeChange} />
+        )}
       </div>
-      
-      {/* Center: Search */}
+
       <div className="flex-1 max-w-2xl px-12">
         <div className="relative group">
           <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -236,7 +178,7 @@ function DashboardHeader({ editMode, onToggleEditMode, onAddSection }: Dashboard
           </div>
           <input
             type="text"
-            placeholder="Search devices, rooms, or scenes..."
+            placeholder="Cihaz veya oda ara..."
             className={cn(
               'block w-full pl-11 pr-14 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl',
               'bg-gray-50 dark:bg-gray-800 text-sm',
@@ -244,32 +186,21 @@ function DashboardHeader({ editMode, onToggleEditMode, onAddSection }: Dashboard
               'dark:text-gray-200 placeholder-gray-400 transition shadow-sm'
             )}
           />
-          <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-            <span className="text-[10px] font-bold text-gray-400 border border-gray-200 dark:border-gray-600 rounded-md px-1.5 py-0.5 bg-white dark:bg-gray-700">CTRL K</span>
-          </div>
         </div>
       </div>
-      
-      {/* Right: Actions */}
+
       <div className="flex items-center gap-4">
-        {/* System Status */}
         <div className="hidden xl:flex flex-col items-end mr-2">
-          <span className="text-xs font-bold text-gray-700 dark:text-gray-200">System Status</span>
-          <div className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-            <span className="text-xs text-green-600 dark:text-green-400 font-medium">Online</span>
-          </div>
+          <span className="text-xs font-bold text-gray-700 dark:text-gray-200">Sistem Durumu</span>
+          <SocketStatus />
         </div>
-        
+
         <div className="h-8 w-px bg-gray-200 dark:bg-gray-700 mx-2"></div>
-        
-        {/* Notifications */}
+
         <button className="p-2.5 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition dark:text-gray-400 relative">
           <Bell className="w-5 h-5" />
-          <span className="absolute top-2 right-2.5 h-2 w-2 bg-red-500 rounded-full border-2 border-white dark:border-gray-900"></span>
         </button>
-        
-        {/* Edit Mode Toggle */}
+
         {editMode ? (
           <div className="flex items-center gap-2">
             <button
@@ -277,14 +208,14 @@ function DashboardHeader({ editMode, onToggleEditMode, onAddSection }: Dashboard
               className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 font-medium transition-all"
             >
               <Plus size={18} />
-              <span className="hidden sm:inline">Add Section</span>
+              <span className="hidden sm:inline">Bölüm Ekle</span>
             </button>
             <button
               onClick={onToggleEditMode}
               className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-500 text-white hover:bg-blue-600 font-medium shadow-lg shadow-blue-500/25 transition-all"
             >
               <Check size={18} />
-              <span className="hidden sm:inline">Done</span>
+              <span className="hidden sm:inline">Bitti</span>
             </button>
           </div>
         ) : (
@@ -301,26 +232,32 @@ function DashboardHeader({ editMode, onToggleEditMode, onAddSection }: Dashboard
   );
 }
 
-// ============================================
-// Add Section Dialog
-// ============================================
+function SocketStatus() {
+  const [connected, setConnected] = useState(false);
 
-interface AddSectionDialogProps {
-  open: boolean;
-  onClose: () => void;
-  onAdd: (section: Omit<Section, 'id' | 'widgets'>) => void;
+  useEffect(() => {
+    return socketService.onConnectionChange(setConnected);
+  }, []);
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className={cn("w-2 h-2 rounded-full", connected ? "bg-green-500 animate-pulse" : "bg-red-500")}></span>
+      <span className={cn("text-xs font-medium", connected ? "text-green-600 dark:text-green-400" : "text-red-600")}>
+        {connected ? "Çevrimiçi" : "Bağlantı Yok"}
+      </span>
+    </div>
+  );
 }
 
 function AddSectionDialog({ open, onClose, onAdd }: AddSectionDialogProps) {
   const [title, setTitle] = useState('');
   const [icon, setIcon] = useState('living_room');
   const [color, setColor] = useState('#6366f1');
-  
-  const ICONS = ['living_room', 'bedroom', 'kitchen', 'bathroom', 'outdoor', 'study', 'garage', 'kids_room'];
+
   const COLORS = ['#6366f1', '#22c55e', '#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4', '#ef4444', '#64748b'];
-  
+
   if (!open) return null;
-  
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
       <motion.div
@@ -333,58 +270,23 @@ function AddSectionDialog({ open, onClose, onAdd }: AddSectionDialogProps) {
         <div className="px-6 py-4 border-b border-gray-100">
           <h2 className="text-lg font-semibold text-gray-900">Yeni Bölüm Ekle</h2>
         </div>
-        
         <div className="p-6 space-y-5">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Bölüm Adı</label>
-            <input
-              type="text"
-              value={title}
-              onChange={e => setTitle(e.target.value)}
-              placeholder="Örn: Salon"
-              className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none"
-              autoFocus
-            />
+            <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="Örn: Salon" className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 outline-none" autoFocus />
           </div>
-          
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Renk</label>
             <div className="flex gap-2 flex-wrap">
               {COLORS.map(c => (
-                <button
-                  key={c}
-                  onClick={() => setColor(c)}
-                  className={cn(
-                    'w-10 h-10 rounded-xl transition-transform',
-                    color === c && 'ring-2 ring-offset-2 ring-gray-400 scale-110'
-                  )}
-                  style={{ backgroundColor: c }}
-                />
+                <button key={c} onClick={() => setColor(c)} className={cn('w-10 h-10 rounded-xl transition-transform', color === c && 'ring-2 ring-offset-2 ring-gray-400 scale-110')} style={{ backgroundColor: c }} />
               ))}
             </div>
           </div>
         </div>
-        
         <div className="px-6 py-4 bg-gray-50 flex justify-end gap-3">
-          <button
-            onClick={onClose}
-            className="px-4 py-2.5 rounded-xl text-gray-700 hover:bg-gray-100 font-medium transition-colors"
-          >
-            İptal
-          </button>
-          <button
-            onClick={() => {
-              if (title.trim()) {
-                onAdd({ title, icon, color });
-                setTitle('');
-                onClose();
-              }
-            }}
-            disabled={!title.trim()}
-            className="px-4 py-2.5 rounded-xl bg-blue-500 text-white hover:bg-blue-600 font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            Ekle
-          </button>
+          <button onClick={onClose} className="px-4 py-2.5 rounded-xl text-gray-700 hover:bg-gray-100 font-medium transition-colors">İptal</button>
+          <button onClick={() => { if (title.trim()) { onAdd({ title, icon, color }); setTitle(''); onClose(); } }} disabled={!title.trim()} className="px-4 py-2.5 rounded-xl bg-blue-500 text-white hover:bg-blue-600 font-medium disabled:opacity-50 transition-colors">Ekle</button>
         </div>
       </motion.div>
     </div>
@@ -395,75 +297,192 @@ function AddSectionDialog({ open, onClose, onAdd }: AddSectionDialogProps) {
 // Main Dashboard Content
 // ============================================
 
+interface AddSectionDialogProps {
+  open: boolean;
+  onClose: () => void;
+  onAdd: (section: Omit<Section, 'id' | 'widgets'>) => void;
+}
+
 function DashboardContent() {
-  const [sections, setSections] = useState<Section[]>(INITIAL_DASHBOARD.sections);
+  const [sections, setSections] = useState<Section[]>([]);
   const [editMode, setEditMode] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [addSectionOpen, setAddSectionOpen] = useState(false);
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
-  
-  // DnD Sensors
+  const [homes, setHomes] = useState<any[]>([]);
+  const [activeHomeId, setActiveHomeId] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(true);
+
   const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
-  
-  // Find section containing a widget
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const homesRes = await api.get('/homes');
+        const fetchedHomes = homesRes.data || [];
+        setHomes(fetchedHomes);
+
+        if (fetchedHomes.length === 0) {
+          setIsLoading(false);
+          return;
+        }
+
+        let currentHomeId = localStorage.getItem('faber_active_home_id');
+        if (!currentHomeId || !fetchedHomes.find((h: any) => h.id === currentHomeId)) {
+          const defaultHomeId = String(fetchedHomes[0].id);
+          currentHomeId = defaultHomeId;
+          localStorage.setItem('faber_active_home_id', defaultHomeId);
+        }
+
+        if (currentHomeId) {
+          setActiveHomeId(currentHomeId);
+          await loadDashboardData(currentHomeId);
+        }
+
+      } catch (err) {
+        console.error("Dashboard Load Error:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  const loadDashboardData = async (homeId: string) => {
+    setIsLoading(true);
+    try {
+      const [roomsRes, devicesRes] = await Promise.all([
+        api.get(`/homes/${homeId}/rooms`),
+        api.get(`/homes/${homeId}/devices`)
+      ]);
+
+      const rooms = roomsRes.data || [];
+      const devices = devicesRes.data || [];
+
+      const newSections: Section[] = rooms.map((room: any, index: number) => {
+        const roomDevices = devices.filter((d: any) => d.roomId === room.id);
+        const colors = ['#6366f1', '#22c55e', '#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4'];
+        return {
+          id: room.id,
+          title: room.name,
+          icon: 'living_room',
+          color: colors[index % colors.length],
+          widgets: roomDevices.map((d: any) => mapDeviceToWidget(d))
+        };
+      });
+
+      const unassigned = devices.filter((d: any) => !d.roomId);
+      if (unassigned.length > 0) {
+        newSections.push({
+          id: 'unassigned',
+          title: 'Diğer Cihazlar',
+          icon: 'box',
+          color: '#94a3b8',
+          widgets: unassigned.map((d: any) => mapDeviceToWidget(d))
+        });
+      }
+      setSections(newSections);
+    } catch (err) {
+      console.error("Failed to load dashboard data", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    socketService.connect();
+    sections.forEach(section => {
+      section.widgets.forEach(widget => {
+        if (widget.entityId) {
+          socketService.subscribeToDevice(widget.entityId, (device: any) => {
+            setSections(prev => prev.map(s => ({
+              ...s,
+              widgets: s.widgets.map(w => {
+                if (w.entityId === device.id) {
+                  const updated = mapDeviceToWidget(device);
+                  return { ...w, state: updated.state, value: updated.value };
+                }
+                return w;
+              })
+            })));
+          });
+        }
+      });
+    });
+    return () => { };
+  }, [sections]);
+
+  const handleWidgetToggle = async (widgetId: string, state: boolean) => {
+    const deviceId = widgetId.replace('w-', '');
+    try {
+      await api.patch(`/devices/${deviceId}`, { attributes: { on: state } });
+    } catch (err) {
+      console.error("Toggle failed", err);
+    }
+  };
+
+  const handleWidgetSliderChange = async (widgetId: string, value: number) => {
+    const deviceId = widgetId.replace('w-', '');
+    let attribute = 'brightness';
+    let widget: Widget | undefined;
+    for (const section of sections) {
+      widget = section.widgets.find(w => w.id === widgetId);
+      if (widget) break;
+    }
+
+    if (widget) {
+      if (widget.type === 'climate') attribute = 'target_temperature';
+      else if (widget.type === 'slider') attribute = 'brightness';
+    }
+
+    try {
+      await api.patch(`/devices/${deviceId}`, { attributes: { [attribute]: value } });
+    } catch (err) {
+      console.error("Slider change failed", err);
+    }
+  };
+
+  const handleHomeChange = (id: string) => {
+    setActiveHomeId(id);
+    localStorage.setItem('faber_active_home_id', id);
+    loadDashboardData(id);
+  };
+
   const findSectionByWidgetId = useCallback((widgetId: string) => {
     return sections.find(s => s.widgets.some(w => w.id === widgetId));
   }, [sections]);
-  
-  // Get active item (section or widget)
+
   const activeItem = useMemo(() => {
     if (!activeId) return null;
-    
-    // Check if it's a section
     const section = sections.find(s => s.id === activeId);
     if (section) return { type: 'section', data: section };
-    
-    // Check if it's a widget
     for (const s of sections) {
       const widget = s.widgets.find(w => w.id === activeId);
       if (widget) return { type: 'widget', data: widget, sectionColor: s.color };
     }
-    
     return null;
   }, [activeId, sections]);
-  
-  // Handle drag start
+
   const handleDragStart = useCallback((event: DragStartEvent) => {
     setActiveId(event.active.id as string);
   }, []);
-  
-  // Handle drag over
+
   const handleDragOver = useCallback((event: DragOverEvent) => {
     const { active, over } = event;
     if (!over) return;
-    
     const activeId = active.id as string;
     const overId = over.id as string;
-    
-    // Don't do anything if hovering over itself
     if (activeId === overId) return;
-    
-    // Find the sections
     const activeSection = findSectionByWidgetId(activeId);
     const overSection = findSectionByWidgetId(overId) || sections.find(s => s.id === overId);
-    
     if (!activeSection || !overSection) return;
-    
-    // Moving widget to different section
     if (activeSection.id !== overSection.id && activeSection.widgets.some(w => w.id === activeId)) {
       setSections(prev => {
         const activeWidget = activeSection.widgets.find(w => w.id === activeId);
         if (!activeWidget) return prev;
-        
         return prev.map(section => {
           if (section.id === activeSection.id) {
             return {
@@ -482,23 +501,14 @@ function DashboardContent() {
       });
     }
   }, [findSectionByWidgetId, sections]);
-  
-  // Handle drag end
+
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event;
-    
-    if (!over) {
-      setActiveId(null);
-      return;
-    }
-    
+    if (!over) { setActiveId(null); return; }
     const activeId = active.id as string;
     const overId = over.id as string;
-    
-    // Check if moving sections
     const activeIsSection = sections.some(s => s.id === activeId);
     const overIsSection = sections.some(s => s.id === overId);
-    
     if (activeIsSection && overIsSection && activeId !== overId) {
       setSections(prev => {
         const oldIndex = prev.findIndex(s => s.id === activeId);
@@ -506,7 +516,6 @@ function DashboardContent() {
         return arrayMove(prev, oldIndex, newIndex);
       });
     } else {
-      // Moving widgets within same section
       const section = findSectionByWidgetId(activeId);
       if (section && section.widgets.some(w => w.id === overId)) {
         setSections(prev => prev.map(s => {
@@ -519,11 +528,9 @@ function DashboardContent() {
         }));
       }
     }
-    
     setActiveId(null);
   }, [findSectionByWidgetId, sections]);
-  
-  // Add Section
+
   const handleAddSection = useCallback((data: Omit<Section, 'id' | 'widgets'>) => {
     const newSection: Section = {
       ...data,
@@ -532,13 +539,11 @@ function DashboardContent() {
     };
     setSections(prev => [...prev, newSection]);
   }, []);
-  
-  // Delete Section
+
   const handleDeleteSection = useCallback((sectionId: string) => {
     setSections(prev => prev.filter(s => s.id !== sectionId));
   }, []);
-  
-  // Delete Widget
+
   const handleDeleteWidget = useCallback((sectionId: string, widgetId: string) => {
     setSections(prev => prev.map(s => {
       if (s.id === sectionId) {
@@ -547,30 +552,26 @@ function DashboardContent() {
       return s;
     }));
   }, []);
-  
-  // Toggle Section Collapse
+
   const handleToggleCollapse = useCallback((sectionId: string) => {
     setCollapsedSections(prev => {
       const next = new Set(prev);
-      if (next.has(sectionId)) {
-        next.delete(sectionId);
-      } else {
-        next.add(sectionId);
-      }
+      if (next.has(sectionId)) next.delete(sectionId);
+      else next.add(sectionId);
       return next;
     });
   }, []);
-  
+
   return (
     <div className="flex flex-col h-full overflow-hidden bg-background-light dark:bg-background-dark">
-      {/* Header */}
       <DashboardHeader
         editMode={editMode}
         onToggleEditMode={() => setEditMode(!editMode)}
         onAddSection={() => setAddSectionOpen(true)}
+        homes={homes}
+        activeHomeId={activeHomeId}
+        onHomeChange={handleHomeChange}
       />
-      
-      {/* Edit Mode Banner */}
       <AnimatePresence>
         {editMode && (
           <motion.div
@@ -583,126 +584,66 @@ function DashboardContent() {
               <div className="flex items-center gap-3 text-blue-700 dark:text-blue-300">
                 <Pencil size={18} />
                 <span className="font-medium">Düzenleme Modu</span>
-                <span className="text-blue-600 dark:text-blue-400 text-sm">• Bölümleri ve widgetları sürükleyerek taşıyabilirsiniz</span>
+                <span className="text-blue-600 dark:text-blue-400 text-sm">• Sürükleyerek düzenleyebilirsiniz</span>
               </div>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
-      
-      {/* Main Content - Scrollable */}
       <main className="flex-1 overflow-y-auto p-8 scroll-smooth">
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragStart={handleDragStart}
-          onDragOver={handleDragOver}
-          onDragEnd={handleDragEnd}
-        >
-          <SortableContext
-            items={sections.map(s => s.id)}
-            strategy={verticalListSortingStrategy}
-          >
-            {/* Sections Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-              {sections.map(section => (
-                <SectionCard
-                  key={section.id}
-                  section={section}
-                  editMode={editMode}
-                  isCollapsed={collapsedSections.has(section.id)}
-                  onToggleCollapse={() => handleToggleCollapse(section.id)}
-                  onDelete={() => handleDeleteSection(section.id)}
-                  onDeleteWidget={(widgetId) => handleDeleteWidget(section.id, widgetId)}
-                  onAddWidget={() => {/* TODO: Add widget dialog */}}
-                />
-              ))}
-              
-              {/* Add Section Card (Edit Mode) */}
-              {editMode && (
-                <motion.button
-                  onClick={() => setAddSectionOpen(true)}
-                  className={cn(
-                    'flex flex-col items-center justify-center gap-4',
-                    'min-h-[200px] rounded-3xl',
-                    'border-2 border-dashed border-gray-300',
-                    'hover:border-blue-400 hover:bg-blue-50/50',
-                    'text-gray-400 hover:text-blue-500',
-                    'transition-all'
-                  )}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                >
-                  <div className="w-14 h-14 rounded-2xl border-2 border-dashed border-current flex items-center justify-center">
-                    <Plus size={28} />
-                  </div>
-                  <span className="text-lg font-medium">Yeni Bölüm Ekle</span>
-                </motion.button>
-              )}
-            </div>
-          </SortableContext>
-          
-          {/* Drag Overlay */}
-          <DragOverlay>
-            {activeItem && activeItem.type === 'section' ? (
-              <div className="opacity-90">
-                <SectionCard
-                  section={activeItem.data as Section}
-                  editMode={true}
-                />
+        {isLoading ? (
+          <div className="flex h-full items-center justify-center text-gray-500">Veriler yükleniyor...</div>
+        ) : (
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
+            <SortableContext items={sections.map(s => s.id)} strategy={verticalListSortingStrategy}>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                {sections.map(section => (
+                  <SectionCard
+                    key={section.id}
+                    section={section}
+                    editMode={editMode}
+                    isCollapsed={collapsedSections.has(section.id)}
+                    onToggleCollapse={() => handleToggleCollapse(section.id)}
+                    onDelete={() => handleDeleteSection(section.id)}
+                    onDeleteWidget={(widgetId) => handleDeleteWidget(section.id, widgetId)}
+                    onWidgetToggle={handleWidgetToggle}
+                    onWidgetSliderChange={handleWidgetSliderChange}
+                    onAddWidget={() => {/* TODO */ }}
+                  />
+                ))}
+                {editMode && (
+                  <motion.button onClick={() => setAddSectionOpen(true)} className={cn('flex flex-col items-center justify-center gap-4', 'min-h-[200px] rounded-3xl', 'border-2 border-dashed border-gray-300', 'hover:border-blue-400 hover:bg-blue-50/50', 'text-gray-400 hover:text-blue-500', 'transition-all')} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                    <div className="w-14 h-14 rounded-2xl border-2 border-dashed border-current flex items-center justify-center"><Plus size={28} /></div>
+                    <span className="text-lg font-medium">Yeni Bölüm Ekle</span>
+                  </motion.button>
+                )}
               </div>
-            ) : activeItem && activeItem.type === 'widget' ? (
-              <div className="opacity-90 w-full max-w-[200px]">
-                <WidgetCard
-                  widget={activeItem.data as Widget}
-                  editMode={true}
-                  sectionColor={activeItem.sectionColor}
-                />
-              </div>
-            ) : null}
-          </DragOverlay>
-        </DndContext>
-        
-        {/* Empty State */}
-        {sections.length === 0 && !editMode && (
+            </SortableContext>
+            <DragOverlay>
+              {activeItem && activeItem.type === 'section' ? (
+                <div className="opacity-90"><SectionCard section={activeItem.data as Section} editMode={true} /></div>
+              ) : activeItem && activeItem.type === 'widget' ? (
+                <div className="opacity-90 w-full max-w-[200px]"><WidgetCard widget={activeItem.data as Widget} editMode={true} sectionColor={activeItem.sectionColor} /></div>
+              ) : null}
+            </DragOverlay>
+          </DndContext>
+        )}
+        {!isLoading && sections.length === 0 && !editMode && (
           <div className="text-center py-20">
-            <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gray-100 flex items-center justify-center">
-              <LayoutGrid size={40} className="text-gray-400" />
-            </div>
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">Dashboard Boş</h2>
-            <p className="text-gray-500 mb-6">Düzenleme modunu açarak bölümler ekleyin</p>
-            <button
-              onClick={() => setEditMode(true)}
-              className="px-6 py-3 rounded-xl bg-blue-500 text-white font-medium hover:bg-blue-600 transition-colors"
-            >
-              Düzenlemeye Başla
-            </button>
+            <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gray-100 flex items-center justify-center"><LayoutGrid size={40} className="text-gray-400" /></div>
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">Veri Bulunamadı</h2>
+            <p className="text-gray-500 mb-6">Cihaz bulunamadı veya henüz oda eklemediniz.</p>
+            <button onClick={() => setEditMode(true)} className="px-6 py-3 rounded-xl bg-blue-500 text-white font-medium hover:bg-blue-600 transition-colors">Düzenle</button>
           </div>
         )}
       </main>
-      
-      {/* Add Section Dialog */}
       <AnimatePresence>
-        {addSectionOpen && (
-          <AddSectionDialog
-            open={addSectionOpen}
-            onClose={() => setAddSectionOpen(false)}
-            onAdd={handleAddSection}
-          />
-        )}
+        {addSectionOpen && <AddSectionDialog open={addSectionOpen} onClose={() => setAddSectionOpen(false)} onAdd={handleAddSection} />}
       </AnimatePresence>
     </div>
   );
 }
 
-// ============================================
-// Exported Page
-// ============================================
-
 export default function DashboardPage() {
-  return (
-    <ThemeProvider>
-      <DashboardContent />
-    </ThemeProvider>
-  );
+  return <ThemeProvider><DashboardContent /></ThemeProvider>;
 }

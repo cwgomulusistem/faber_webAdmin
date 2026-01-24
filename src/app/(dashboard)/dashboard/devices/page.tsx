@@ -13,6 +13,26 @@ export default function DevicesPage() {
     router.back();
   };
 
+  const [devices, setDevices] = React.useState<any[]>([]);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    const fetchDevices = async () => {
+      try {
+        const activeHomeId = localStorage.getItem('faber_active_home_id');
+        if (!activeHomeId) { setLoading(false); return; } // Should show empty state or redirect
+
+        const res = await (await import('@/services/api.service')).default.get(`/homes/${activeHomeId}/devices`);
+        setDevices(res.data || []);
+      } catch (err) {
+        console.error("Failed to fetch devices", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchDevices();
+  }, []);
+
   return (
     <div className="flex flex-col h-full bg-background-light dark:bg-background-dark text-slate-900 dark:text-white overflow-hidden">
 
@@ -82,55 +102,27 @@ export default function DevicesPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                <DeviceRow
-                  name="Living Room Main Light"
-                  id="#DEV-2049"
-                  icon={<Lightbulb size={20} />}
-                  iconColor="text-orange-600 dark:text-orange-400"
-                  iconBg="bg-orange-100 dark:bg-orange-900/30"
-                  status="Online"
-                  room="Living Room"
-                  protocol="Zigbee 3.0"
-                  lastSeen="Just now"
-                  type="light"
-                />
-                <DeviceRow
-                  name="Front Door Lock"
-                  id="#DEV-8821"
-                  icon={<Lock size={20} />}
-                  iconColor="text-blue-600 dark:text-blue-400"
-                  iconBg="bg-blue-100 dark:bg-blue-900/30"
-                  status="Offline"
-                  room="Entrance"
-                  protocol="Z-Wave Plus"
-                  lastSeen="2 hours ago"
-                  type="lock"
-                />
-                <DeviceRow
-                  name="Kitchen Thermostat"
-                  id="#DEV-1102"
-                  icon={<Thermometer size={20} />}
-                  iconColor="text-red-600 dark:text-red-400"
-                  iconBg="bg-red-100 dark:bg-red-900/30"
-                  status="Online"
-                  room="Kitchen"
-                  protocol="WiFi 6"
-                  lastSeen="5 mins ago"
-                  type="thermostat"
-                  value="72°F"
-                />
-                <DeviceRow
-                  name="Garage Door"
-                  id="#DEV-9912"
-                  icon={<Router size={20} />} // Fallback icon
-                  iconColor="text-slate-600 dark:text-slate-300"
-                  iconBg="bg-slate-100 dark:bg-slate-700"
-                  status="Battery Low"
-                  room="Garage"
-                  protocol="WiFi 6"
-                  lastSeen="12 hours ago"
-                  type="garage"
-                />
+                {loading ? (
+                  <tr><td colSpan={6} className="p-8 text-center text-slate-500">Loading devices...</td></tr>
+                ) : devices.length === 0 ? (
+                  <tr><td colSpan={6} className="p-8 text-center text-slate-500">No devices found.</td></tr>
+                ) : (
+                  devices.map(device => (
+                    <DeviceRow
+                      key={device.id}
+                      name={device.name}
+                      id={`#DEV-${device.id.substring(0, 4)}`}
+                      icon={device.type?.toLowerCase().includes('therm') ? <Thermometer size={20} /> : <Lightbulb size={20} />}
+                      iconColor="text-blue-600 dark:text-blue-400"
+                      iconBg="bg-blue-100 dark:bg-blue-900/30"
+                      status={device.isOnline ? "Online" : "Offline"}
+                      room={device.roomName || "Unassigned"}
+                      protocol={device.type || "Unknown"}
+                      lastSeen="Recently" // dynamic?
+                      type={device.type?.toLowerCase().includes('light') ? 'light' : 'other'}
+                    />
+                  ))
+                )}
               </tbody>
             </table>
           </div>

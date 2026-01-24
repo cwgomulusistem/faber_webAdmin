@@ -110,7 +110,7 @@ export function DeviceAccessList({ userId }: DeviceAccessListProps) {
                             iconBg="bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"
                             defaultRole={device._tempRole || 'View Only'}
                             requiresPin={false}
-                            onChange={(role) => handlePermissionChange(device.id, role)}
+                            onChange={(role: string) => handlePermissionChange(device.id, role)}
                         />
                     ))
                 )}
