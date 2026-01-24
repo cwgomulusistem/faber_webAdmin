@@ -36,6 +36,7 @@ const navItems: NavItem[] = [
   { label: 'Rooms', href: '/dashboard/rooms', icon: <DoorOpen size={20} /> },
   { label: 'Automations', href: '/dashboard/scenes', icon: <Zap size={20} /> },
   { label: 'Permissions', href: '/dashboard/permissions', icon: <ShieldCheck size={20} /> },
+  { label: 'Audit Logs', href: '/dashboard/logs', icon: <ShieldCheck size={20} /> },
   { label: 'Settings', href: '/dashboard/settings', icon: <Settings size={20} /> },
 ];
 

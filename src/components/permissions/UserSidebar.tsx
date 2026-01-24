@@ -1,18 +1,67 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Search, ChevronRight } from 'lucide-react';
-import { cn } from '@/lib/utils'; // Assuming cn utility exists
+import { cn } from '@/lib/utils';
+import api from '@/services/api.service';
 
-// Mock Data
-const users = [
-    { id: 1, name: 'Alex Johnson', role: 'Master Admin', type: 'admin', avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDvhdrmBCFJrmq1QNt_e8bq7t0CHV_G-jlfwj8wZwJl34L4NQmWnl5pYJBYLPesYYUGwF6xh5Cw-eaZ2EOaoucFf-J7NYfbZdaIwwewS-DQ7qOBJDD9v5cCdiG36MaQRElJJXSSUscckZvMQ6sHgViw7tX4CEUc2rDTDiW6hoW3HaSoP4E1pmYh_kKmVl0HVfYCrqW5sUQqVHsHij6vPjYtF8KZ_CX-MDWlwn9NmCQ9qQX7vrjvSAms2x_hndX-dPYoMCTpYQophbI' },
-    { id: 2, name: 'Sarah Smith', role: 'Standard Member', type: 'member', avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDOUevqyITJHlY8bn_RtQYjChTFLToqxrzYpDQOAqM0nspskUVCIdmrV1iUWNbmT5eQ9xgSDlXw1PCZUvyOTcqxsAbnImAIvaN12TDxND2mk6HhmgOdUwTAhOEK7PqlaaU_x_KBcqS2FIpZgoPsH0H3YquccHmM7Jjo-iWuwnoXrfZtwBM6TMqaIju7I05dqqunG25F5aGZk52CVetDVJVC8Nd8QBPbS1IAcjodYch27j69fShLqizLWKBxliTMrasgdCi_zqAgcaA', active: true },
-    { id: 3, name: 'Leo (Child)', role: 'Restricted Access', type: 'member', restricted: true, avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDb06Y2bYR1hQuhF0Ei9UFkEqR8DwjlffcyO4z8mqAY1aUx7Zl7TkRB0xXYIyeGoQMt2z5V6krB27sVRIOTEpWDwZ6HbZdyR9EtLj8kFZS4f6eRHDSKrLGump8rJHWtRmGFPnVgycvNApOiWTu1uryMBF9cmOMNeyDnzUwIPRfmCc74p803cgiz74MyUQ4WZ0oxS-GwRvaRHzuu-F8LVyAZLxrZDRvSRjpl4W-DLtTnHSVgx-G6qaOGYzCj2X81IMF9Q2qbejg1SEk' },
-    { id: 4, name: 'Dog Walker', role: 'Scheduled: 2pm-4pm', type: 'guest', avatar: null, initial: 'D' },
-];
+const masterUser = {
+    id: 'master',
+    name: 'Master Admin',
+    role: 'Master Admin',
+    type: 'admin' as const,
+    // avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDvhdrmBCFJrmq1QNt_e8bq7t0CHV_G-jlfwj8wZwJl34L4NQmWnl5pYJBYLPesYYUGwF6xh5Cw-eaZ2EOaoucFf-J7NYfbZdaIwwewS-DQ7qOBJDD9v5cCdiG36MaQRElJJXSSUscckZvMQ6sHgViw7tX4CEUc2rDTDiW6hoW3HaSoP4E1pmYh_kKmVl0HVfYCrqW5sUQqVHsHij6vPjYtF8KZ_CX-MDWlwn9NmCQ9qQX7vrjvSAms2x_hndX-dPYoMCTpYQophbI',
+    initial: 'M'
+};
 
-export function UserSidebar() {
+export function UserSidebar({ onSelectUser, selectedUserId }: { onSelectUser?: (user: any) => void, selectedUserId?: string | null }) {
+    const [subUsers, setSubUsers] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchUsers = async () => {
+            try {
+                // Determine Home ID (fallback to first home if not in local storage for MVP)
+                let activeHomeId = localStorage.getItem('faber_active_home_id');
+
+                if (!activeHomeId) {
+                    // Try to fetch homes to get a default
+                    try {
+                        const homesRes = await api.get('/homes');
+                        if (homesRes.data && homesRes.data.length > 0) {
+                            activeHomeId = homesRes.data[0].id;
+                            localStorage.setItem('faber_active_home_id', activeHomeId!);
+                        }
+                    } catch (e) {
+                        console.warn('Failed to fetch homes for default ID', e);
+                    }
+                }
+
+                if (!activeHomeId) {
+                    setLoading(false);
+                    return;
+                }
+
+                const res = await api.get(`/users/sub?homeId=${activeHomeId}`);
+
+                const mapped = res.data.subUsers.map((u: any) => ({
+                    id: u.id,
+                    name: u.fullName,
+                    role: u.username,
+                    type: 'member',
+                    initial: u.fullName ? u.fullName.charAt(0).toUpperCase() : 'U',
+                    raw: u
+                }));
+                setSubUsers(mapped);
+            } catch (err) {
+                console.error('Failed to fetch users', err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchUsers();
+    }, []);
+
     return (
         <aside className="w-80 flex flex-col border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-surface-dark overflow-y-auto shrink-0 hidden lg:flex transition-colors duration-300">
             <div className="p-4 border-b border-slate-100 dark:border-slate-800 sticky top-0 bg-white dark:bg-surface-dark z-10 transition-colors duration-300">
@@ -28,36 +77,41 @@ export function UserSidebar() {
 
             <div className="flex flex-col p-3 gap-2">
                 <p className="px-3 py-2 text-xs font-bold text-slate-400 uppercase tracking-wider">Administrators</p>
-                {users.filter(u => u.type === 'admin').map(user => (
-                    <UserListItem key={user.id} user={user} />
-                ))}
+                <UserListItem
+                    user={masterUser}
+                    isActive={selectedUserId === 'master'}
+                    onClick={() => onSelectUser?.(masterUser)}
+                />
 
                 <p className="px-3 py-2 text-xs font-bold text-slate-400 uppercase tracking-wider mt-2">Members</p>
-                {users.filter(u => u.type === 'member').map(user => (
-                    <UserListItem key={user.id} user={user} />
-                ))}
-
-                <p className="px-3 py-2 text-xs font-bold text-slate-400 uppercase tracking-wider mt-2">Guests</p>
-                {users.filter(u => u.type === 'guest').map(user => (
-                    <UserListItem key={user.id} user={user} />
-                ))}
+                {loading ? (
+                    <div className="px-4 py-2 text-slate-400 text-sm">Loading users...</div>
+                ) : subUsers.length === 0 ? (
+                    <div className="px-4 py-2 text-slate-400 text-sm">No members found</div>
+                ) : (
+                    subUsers.map(user => (
+                        <UserListItem
+                            key={user.id}
+                            user={user}
+                            isActive={selectedUserId === user.id}
+                            onClick={() => onSelectUser?.(user)}
+                        />
+                    ))
+                )}
             </div>
         </aside>
     );
 }
 
-function UserListItem({ user }: { user: any }) {
-    const isActive = user.active;
-    const isRestricted = user.restricted;
-
+function UserListItem({ user, isActive, onClick }: { user: any, isActive?: boolean, onClick?: () => void }) {
     return (
         <button
+            onClick={onClick}
             className={cn(
                 "flex items-center gap-3 p-3 rounded-xl transition-colors text-left group w-full relative",
                 isActive
                     ? "bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800"
-                    : "hover:bg-slate-50 dark:hover:bg-slate-800",
-                isRestricted && "opacity-70"
+                    : "hover:bg-slate-50 dark:hover:bg-slate-800"
             )}
         >
             {isActive && (
@@ -68,7 +122,6 @@ function UserListItem({ user }: { user: any }) {
                 className={cn(
                     "size-10 rounded-full bg-cover bg-center shrink-0 flex items-center justify-center font-bold text-lg",
                     isActive ? "ring-2 ring-primary" : "ring-2 ring-slate-100 dark:ring-slate-700",
-                    isRestricted && "grayscale",
                     !user.avatar && "bg-orange-100 text-orange-600"
                 )}
                 style={user.avatar ? { backgroundImage: `url("${user.avatar}")` } : {}}

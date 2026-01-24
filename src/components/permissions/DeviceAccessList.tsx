@@ -1,10 +1,79 @@
 'use client';
 
-import React from 'react';
-import { ShieldAlert, Bot, Lightbulb, Lock } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { ShieldAlert, Bot, Lightbulb, Lock, Save } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import api from '@/services/api.service';
 
-export function DeviceAccessList() {
+interface DeviceAccessListProps {
+    userId?: string;
+}
+
+export function DeviceAccessList({ userId }: DeviceAccessListProps) {
+    const [devices, setDevices] = useState<any[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [saving, setSaving] = useState(false);
+
+    // We need to fetch both available devices AND the user's specific permissions
+    // MVP: For now, we fetch all devices and assume a default permission if not set.
+    // In a real implementation, we'd GET /users/sub/:id/permissions or similar.
+
+    useEffect(() => {
+        if (!userId || userId === 'master') {
+            setDevices([]);
+            return;
+        }
+
+        const fetchDevicesAndPerms = async () => {
+            setLoading(true);
+            try {
+                // 1. Get Devices
+                const activeHomeId = localStorage.getItem('faber_active_home_id');
+                if (!activeHomeId) return; // Should handle error
+
+                const devicesRes = await api.get(`/homes/${activeHomeId}/devices`);
+                const allDevices = devicesRes.data;
+
+                // 2. Get User Permissions (Mocking endpoint or using sub-user object if extended)
+                // For MVP, since the backend might not have a granular permission endpoint yet,
+                // we will just show devices and allow "saving" which might update a JSON blob on the user
+                // or individual permission records.
+                // Assuming we default to 'VIEW_ONLY' if no specific record.
+
+                setDevices(allDevices);
+            } catch (err) {
+                console.error("Failed to fetch device permissions", err);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchDevicesAndPerms();
+    }, [userId]);
+
+    const handlePermissionChange = async (deviceId: string, newRole: string) => {
+        // Optimistic update locally
+        setDevices(prev => prev.map(d => d.id === deviceId ? { ...d, _tempRole: newRole } : d));
+    };
+
+    const handleSave = async () => {
+        if (!userId) return;
+        setSaving(true);
+        try {
+            // Construct permission payload
+            // This would call something like POST /users/sub/:id/permissions
+            // data: { permissions: [{ deviceId, level: ... }] }
+            await new Promise(r => setTimeout(r, 800)); // Fake network
+            alert("Permissions saved (Simulated)");
+        } catch (err) {
+            alert("Failed to save");
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    if (!userId || userId === 'master') return null;
+
     return (
         <section className="bg-white dark:bg-surface-dark rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden transition-colors duration-300">
             <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
@@ -12,7 +81,13 @@ export function DeviceAccessList() {
                     <ShieldAlert className="text-primary w-6 h-6" />
                     <h3 className="text-lg font-bold text-slate-900 dark:text-white">Granular Device Access</h3>
                 </div>
-                <button className="text-sm text-primary font-bold hover:underline">Reset to Default</button>
+                <button
+                    onClick={handleSave}
+                    disabled={saving}
+                    className="flex items-center gap-2 text-sm bg-primary text-white px-3 py-1.5 rounded-lg font-bold hover:bg-blue-600 disabled:opacity-50 transition-colors"
+                >
+                    {saving ? 'Saving...' : 'Save Changes'}
+                </button>
             </div>
 
             <div className="grid grid-cols-12 gap-4 px-6 py-3 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800 text-xs font-bold text-slate-500 uppercase tracking-wider">
@@ -22,43 +97,29 @@ export function DeviceAccessList() {
             </div>
 
             <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                <div className="px-6 py-3 bg-slate-50/50 dark:bg-slate-800/20">
-                    <span className="text-xs font-bold text-slate-400">LIVING ROOM</span>
-                </div>
-
-                <DeviceRow
-                    icon={<Bot size={20} />}
-                    name="Main Thermostat"
-                    iconBg="bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"
-                    defaultRole="Control"
-                    requiresPin={false}
-                />
-
-                <DeviceRow
-                    icon={<Lightbulb size={20} />}
-                    name="Ceiling Lights"
-                    iconBg="bg-yellow-100 text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400"
-                    defaultRole="Full Admin"
-                    requiresPin={false}
-                />
-
-                <div className="px-6 py-3 bg-slate-50/50 dark:bg-slate-800/20">
-                    <span className="text-xs font-bold text-slate-400">ENTRANCE & SECURITY</span>
-                </div>
-
-                <DeviceRow
-                    icon={<Lock size={20} />}
-                    name="Smart Lock"
-                    iconBg="bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400"
-                    defaultRole="Control"
-                    requiresPin={true}
-                />
+                {loading ? (
+                    <div className="p-6 text-center text-slate-400 text-sm">Loading devices...</div>
+                ) : devices.length === 0 ? (
+                    <div className="p-6 text-center text-slate-400 text-sm">No devices found in this home.</div>
+                ) : (
+                    devices.map((device: any) => (
+                        <DeviceRow
+                            key={device.id}
+                            icon={<Bot size={20} />} // Dynamic icon based on type would be better
+                            name={device.name}
+                            iconBg="bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"
+                            defaultRole={device._tempRole || 'View Only'}
+                            requiresPin={false}
+                            onChange={(role) => handlePermissionChange(device.id, role)}
+                        />
+                    ))
+                )}
             </div>
         </section>
     );
 }
 
-function DeviceRow({ icon, name, iconBg, defaultRole, requiresPin }: any) {
+function DeviceRow({ icon, name, iconBg, defaultRole, requiresPin, onChange }: any) {
     return (
         <div className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
             <div className="col-span-5 md:col-span-4 flex items-center gap-3">
@@ -70,12 +131,13 @@ function DeviceRow({ icon, name, iconBg, defaultRole, requiresPin }: any) {
 
             <div className="col-span-4 md:col-span-4">
                 <select
-                    defaultValue={defaultRole}
+                    value={defaultRole}
+                    onChange={(e) => onChange(e.target.value)}
                     className="w-full text-xs md:text-sm py-1.5 pl-2 pr-7 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-surface-dark focus:ring-primary focus:border-primary cursor-pointer outline-none dark:text-white"
                 >
-                    <option>View Only</option>
-                    <option>Control</option>
-                    <option>Full Admin</option>
+                    <option value="View Only">View Only</option>
+                    <option value="Control">Control</option>
+                    <option value="Full Admin">Full Admin</option>
                 </select>
             </div>
 
