@@ -1,5 +1,16 @@
 @import "tailwindcss";
 
+@theme {
+  --color-primary: #137fec;
+  --color-background-light: #f6f7f8;
+  --color-background-dark: #101922;
+  --color-surface-light: #ffffff;
+  --color-surface-dark: #1a2632;
+  --color-sidebar-dark: #131c26;
+  
+  --font-display: "Inter", sans-serif;
+}
+
 /* Tailwind v4 source configuration */
 @source "../**/*.{js,ts,jsx,tsx,mdx}";
 @source "../../components/**/*.{js,ts,jsx,tsx,mdx}";

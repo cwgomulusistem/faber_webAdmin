@@ -16,7 +16,8 @@ import {
   Settings,
   LogOut,
   Home,
-  WifiOff
+  WifiOff,
+  ShieldCheck
 } from 'lucide-react';
 import { useSocket } from '../../hooks/useSocket';
 import { cn } from '@/lib/utils';
@@ -34,7 +35,7 @@ const navItems: NavItem[] = [
   { label: 'Devices', href: '/dashboard/devices', icon: <Router size={20} />, badge: 12 },
   { label: 'Rooms', href: '/dashboard/rooms', icon: <DoorOpen size={20} /> },
   { label: 'Automations', href: '/dashboard/scenes', icon: <Zap size={20} /> },
-  { label: 'Members', href: '/dashboard/users', icon: <Users size={20} /> },
+  { label: 'Permissions', href: '/dashboard/permissions', icon: <ShieldCheck size={20} /> },
   { label: 'Settings', href: '/dashboard/settings', icon: <Settings size={20} /> },
 ];
 
@@ -79,12 +80,12 @@ export function Sidebar() {
           <nav className="space-y-1.5">
             <p className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Main Menu</p>
             {navItems.map((item) => {
-               const isActive = pathname === item.href || 
-                              (item.href !== '/dashboard' && pathname.startsWith(item.href));
-              
+              const isActive = pathname === item.href ||
+                (item.href !== '/dashboard' && pathname.startsWith(item.href));
+
               if (isActive) {
                 return (
-                  <Link 
+                  <Link
                     key={item.href}
                     href={item.href}
                     className="flex items-center gap-3 px-4 py-3 rounded-xl bg-primary/10 text-primary font-semibold shadow-sm border border-primary/20 relative"
@@ -122,15 +123,15 @@ export function Sidebar() {
       <div className="p-6 border-t border-gray-100 dark:border-gray-800">
         <div className="flex items-center gap-3 mb-4">
           <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 font-bold border-2 border-white shadow-sm">
-             {user?.email?.charAt(0).toUpperCase() || 'U'}
+            {user?.email?.charAt(0).toUpperCase() || 'U'}
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-bold text-gray-900 dark:text-white truncate">
-                {user?.fullName || user?.email?.split('@')[0] || 'Kullanıcı'}
+              {user?.fullName || user?.email?.split('@')[0] || 'Kullanıcı'}
             </p>
             <p className="text-xs text-gray-500 truncate">{user?.email || 'email@home.local'}</p>
           </div>
-          <button 
+          <button
             onClick={handleLogout}
             className="text-gray-400 hover:text-red-500 transition"
             title="Log out"
