@@ -3,7 +3,7 @@
 import React from 'react';
 import { Hash } from 'lucide-react';
 
-export function PinManagement() {
+export function PinManagement({ user }: { user?: any }) {
     return (
         <section className="bg-white dark:bg-surface-dark rounded-xl p-6 shadow-sm border border-slate-100 dark:border-slate-800 mb-10 transition-colors duration-300">
             <div className="flex flex-col md:flex-row gap-6 md:items-center justify-between">

@@ -35,6 +35,7 @@ const navItems: NavItem[] = [
   { label: 'Dashboard', href: '/dashboard', icon: <LayoutDashboard size={20} /> },
   { label: 'Evlerim', href: '/dashboard/homes', icon: <Home size={20} /> },
   { label: 'Cihazlar', href: '/dashboard/devices', icon: <Router size={20} />, badge: 12 },
+  { label: 'Üyeler', href: '/dashboard/members', icon: <Users size={20} /> },
   { label: 'Odalar', href: '/dashboard/rooms', icon: <DoorOpen size={20} /> },
   { label: 'Otomasyon', href: '/dashboard/scenes', icon: <Zap size={20} /> },
   { label: 'İzinler', href: '/dashboard/permissions', icon: <ShieldCheck size={20} /> },

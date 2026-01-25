@@ -4,7 +4,7 @@ import React from 'react';
 import { Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-export function ScheduledAccess() {
+export function ScheduledAccess({ user }: { user?: any }) {
     const days = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
     const activeDays = [0, 1, 2, 3, 4]; // M-F active
 

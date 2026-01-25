@@ -7,19 +7,22 @@ import api from '@/services/api.service';
 
 interface DeviceAccessListProps {
     userId?: string;
+    user?: any;
 }
 
-export function DeviceAccessList({ userId }: DeviceAccessListProps) {
+export function DeviceAccessList({ userId, user }: DeviceAccessListProps) {
     const [devices, setDevices] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
+
+    const activeUserId = user?.id || userId;
 
     // We need to fetch both available devices AND the user's specific permissions
     // MVP: For now, we fetch all devices and assume a default permission if not set.
     // In a real implementation, we'd GET /users/sub/:id/permissions or similar.
 
     useEffect(() => {
-        if (!userId || userId === 'master') {
+        if (!activeUserId || activeUserId === 'master') {
             setDevices([]);
             return;
         }
@@ -32,7 +35,7 @@ export function DeviceAccessList({ userId }: DeviceAccessListProps) {
                 if (!activeHomeId) return; // Should handle error
 
                 const devicesRes = await api.get(`/homes/${activeHomeId}/devices`);
-                const allDevices = devicesRes.data;
+                const allDevices = devicesRes.data?.data || [];
 
                 // 2. Get User Permissions (Mocking endpoint or using sub-user object if extended)
                 // For MVP, since the backend might not have a granular permission endpoint yet,
@@ -49,7 +52,7 @@ export function DeviceAccessList({ userId }: DeviceAccessListProps) {
         };
 
         fetchDevicesAndPerms();
-    }, [userId]);
+    }, [activeUserId]);
 
     const handlePermissionChange = async (deviceId: string, newRole: string) => {
         // Optimistic update locally
@@ -57,7 +60,7 @@ export function DeviceAccessList({ userId }: DeviceAccessListProps) {
     };
 
     const handleSave = async () => {
-        if (!userId) return;
+        if (!activeUserId) return;
         setSaving(true);
         try {
             // Construct permission payload
@@ -72,7 +75,7 @@ export function DeviceAccessList({ userId }: DeviceAccessListProps) {
         }
     };
 
-    if (!userId || userId === 'master') return null;
+    if (!activeUserId || activeUserId === 'master') return null;
 
     return (
         <section className="bg-white dark:bg-surface-dark rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden transition-colors duration-300">
