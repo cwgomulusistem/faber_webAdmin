@@ -26,7 +26,7 @@ export default function HomesPage() {
         try {
             setLoading(true);
             const res = await api.get('/homes');
-            setHomes(res.data || []);
+            setHomes(res.data?.data || []);
         } catch (err) {
             console.error("Failed to fetch homes", err);
         } finally {

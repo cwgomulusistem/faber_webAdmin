@@ -358,7 +358,7 @@ function DashboardContent() {
     const fetchData = async () => {
       try {
         const homesRes = await api.get('/homes');
-        const fetchedHomes = homesRes.data || [];
+        const fetchedHomes = homesRes.data?.data || [];
         setHomes(fetchedHomes);
 
         if (fetchedHomes.length === 0) {
@@ -396,8 +396,8 @@ function DashboardContent() {
         api.get(`/homes/${homeId}/devices`)
       ]);
 
-      const rooms = roomsRes.data || [];
-      const devices = devicesRes.data || [];
+      const rooms = roomsRes.data?.data || [];
+      const devices = devicesRes.data?.data || [];
       setAllDevices(devices);
 
       const newSections: Section[] = rooms.map((room: any, index: number) => {

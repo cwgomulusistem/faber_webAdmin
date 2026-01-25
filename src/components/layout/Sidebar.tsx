@@ -55,7 +55,7 @@ export function Sidebar() {
     const fetchHomes = async () => {
       try {
         const res = await api.get('/homes');
-        const homeList = res.data || [];
+        const homeList = res.data?.data || [];
         setHomes(homeList);
 
         const currentId = localStorage.getItem('faber_active_home_id');

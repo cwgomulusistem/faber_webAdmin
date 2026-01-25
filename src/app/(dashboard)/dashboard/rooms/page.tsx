@@ -24,8 +24,8 @@ export default function RoomsPage() {
           api.get(`/homes/${activeHomeId}/devices`)
         ]);
 
-        const rawRooms = roomsRes.data || [];
-        const allDevices = devicesRes.data || [];
+        const rawRooms = roomsRes.data?.data || [];
+        const allDevices = devicesRes.data?.data || [];
 
         const enhancedRooms = rawRooms.map((room: any) => ({
           ...room,

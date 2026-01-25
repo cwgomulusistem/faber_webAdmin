@@ -29,7 +29,7 @@ export default function DevicesPage() {
         }
 
         const res = await api.get(`/homes/${activeHomeId}/devices`);
-        setDevices(res.data || []);
+        setDevices(res.data?.data || []);
       } catch (err) {
         console.error("Failed to fetch devices", err);
       } finally {
