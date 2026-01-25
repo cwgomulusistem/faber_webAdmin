@@ -9,6 +9,8 @@ import { DeviceAccessList } from '@/components/permissions/DeviceAccessList';
 import { PinManagement } from '@/components/permissions/PinManagement';
 
 export default function PermissionsPage() {
+    const [selectedUser, setSelectedUser] = React.useState<any>(null);
+
     return (
         <div className="flex flex-col h-full overflow-hidden">
             {/* Header */}
@@ -17,23 +19,26 @@ export default function PermissionsPage() {
             {/* Main Layout */}
             <div className="flex-1 overflow-hidden flex">
                 {/* Left Sidebar (User List) */}
-                <UserSidebar />
+                <UserSidebar
+                    onSelectUser={setSelectedUser}
+                    selectedUserId={selectedUser?.id}
+                />
 
                 {/* Main Content (Scrollable) */}
                 <div className="flex-1 overflow-y-auto p-6 md:p-10 scroll-smooth">
                     <div className="max-w-4xl mx-auto flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
                         {/* User Profile & Global Role */}
-                        <UserProfileSettings />
+                        <UserProfileSettings user={selectedUser} />
 
                         {/* Scheduled Access */}
-                        <ScheduledAccess />
+                        <ScheduledAccess user={selectedUser} />
 
                         {/* Granular Device Access */}
-                        <DeviceAccessList />
+                        <DeviceAccessList user={selectedUser} />
 
                         {/* PIN Management */}
-                        <PinManagement />
+                        <PinManagement user={selectedUser} />
 
                     </div>
                 </div>
