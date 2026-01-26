@@ -34,7 +34,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { label: 'Dashboard', href: '/dashboard', icon: <LayoutDashboard size={20} /> },
   { label: 'Evlerim', href: '/dashboard/homes', icon: <Home size={20} /> },
-  { label: 'Cihazlar', href: '/dashboard/devices', icon: <Router size={20} />, badge: 12 },
+  { label: 'Cihazlar', href: '/dashboard/devices', icon: <Router size={20} /> },
   { label: 'Üyeler', href: '/dashboard/members', icon: <Users size={20} /> },
   { label: 'Odalar', href: '/dashboard/rooms', icon: <DoorOpen size={20} /> },
   { label: 'Otomasyon', href: '/dashboard/scenes', icon: <Zap size={20} /> },
@@ -48,9 +48,7 @@ export function Sidebar() {
   const { logout, user } = useAuth();
   const { isConnected } = useSocket();
 
-  const [homes, setHomes] = useState<any[]>([]);
-  const [activeHome, setActiveHome] = useState<any>(null);
-  const [isHomeMenuOpen, setIsHomeMenuOpen] = useState(false);
+  const [deviceCount, setDeviceCount] = useState<number>(0);
 
   useEffect(() => {
     const fetchHomes = async () => {
@@ -76,6 +74,24 @@ export function Sidebar() {
     };
     fetchHomes();
   }, []);
+
+  // Fetch device count when activeHome changes
+  useEffect(() => {
+    const fetchDeviceCount = async () => {
+      if (!activeHome?.id) return;
+      try {
+        const res = await api.get(`/homes/${activeHome.id}/devices`);
+        if (res.data?.success) {
+          setDeviceCount(res.data.data?.length || 0);
+        }
+      } catch (e) {
+        console.error("Failed to fetch device count", e);
+        setDeviceCount(0);
+      }
+    };
+
+    fetchDeviceCount();
+  }, [activeHome]);
 
   const handleSwitchHome = (home: any) => {
     localStorage.setItem('faber_active_home_id', home.id);
@@ -191,6 +207,8 @@ export function Sidebar() {
             {navItems.map((item) => {
               const isActive = pathname === item.href ||
                 (item.href !== '/dashboard' && pathname.startsWith(item.href));
+              
+              const badge = item.href === '/dashboard/devices' ? deviceCount : item.badge;
 
               if (isActive) {
                 return (
@@ -216,9 +234,9 @@ export function Sidebar() {
                     {item.icon}
                   </span>
                   <span className="font-medium">{item.label}</span>
-                  {item.badge !== undefined && (
+                  {badge !== undefined && badge > 0 && (
                     <span className="ml-auto text-xs bg-gray-100 dark:bg-gray-700 text-gray-500 px-2 py-0.5 rounded-full">
-                      {item.badge}
+                      {badge}
                     </span>
                   )}
                 </Link>

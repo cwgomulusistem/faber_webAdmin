@@ -30,8 +30,9 @@ class SocketService {
     }
     
     this.socket = io(env.SOCKET_URL, {
-      auth: { token },
-      transports: ['websocket'],
+      query: { token }, // Backend expects token in query params
+      // auth: { token }, // Socket.IO v4 auth object (not supported by older Go backend)
+      transports: ['websocket', 'polling'], // Allow polling fallback
       reconnection: true,
       reconnectionAttempts: this.maxReconnectAttempts,
       reconnectionDelay: 1000,
