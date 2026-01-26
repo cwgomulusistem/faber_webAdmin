@@ -49,6 +49,9 @@ export function Sidebar() {
   const { isConnected } = useSocket();
 
   const [deviceCount, setDeviceCount] = useState<number>(0);
+  const [homes, setHomes] = useState<any[]>([]);
+  const [activeHome, setActiveHome] = useState<any>(null);
+  const [isHomeMenuOpen, setIsHomeMenuOpen] = useState(false);
 
   useEffect(() => {
     const fetchHomes = async () => {
