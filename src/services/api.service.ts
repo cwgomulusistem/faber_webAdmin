@@ -77,7 +77,8 @@ api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const token = tokenManager.getToken();
     
-    if (token && config.headers) {
+    // Prevent overwriting existing Authorization header (e.g. set by Global Admin service)
+    if (token && config.headers && !config.headers.Authorization) {
       config.headers.Authorization = `Bearer ${token}`;
     }
     
