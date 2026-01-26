@@ -18,10 +18,32 @@ const protectedRoutes = [
 const authRoutes = ['/login', '/register'];
 
 // Public routes that don't require authentication
-const publicRoutes = ['/', '/forgot-password'];
+// const publicRoutes = ['/', '/forgot-password'];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  
+  // --- Global Admin Routes Logic (/64ad16) ---
+  if (pathname.startsWith('/64ad16')) {
+    const globalToken = request.cookies.get('global_admin_token')?.value;
+    const isGlobalAuth = !!globalToken;
+    const isGlobalLoginPage = pathname === '/64ad16/login';
+
+    // If trying to access login page while authenticated, redirect to system-logs
+    if (isGlobalLoginPage && isGlobalAuth) {
+      return NextResponse.redirect(new URL('/64ad16/system-logs', request.url));
+    }
+
+    // If trying to access protected pages while NOT authenticated, redirect to login
+    if (!isGlobalLoginPage && !isGlobalAuth) {
+      return NextResponse.redirect(new URL('/64ad16/login', request.url));
+    }
+
+    // Allow global admin access
+    return NextResponse.next();
+  }
+
+  // --- Start Standard Routes Logic ---
   
   // Get token from cookies
   const token = request.cookies.get('admin_token')?.value;

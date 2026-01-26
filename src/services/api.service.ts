@@ -81,13 +81,42 @@ api.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`;
     }
     
-    // Add X-Client-ID header for device binding (REQUIRED for authenticated requests)
+    // CRITICAL: Add X-Client-ID header for device binding (REQUIRED for authenticated requests)
     // This binds the token to this specific device - prevents token replay attacks
     if (config.headers) {
-      const clientId = tokenManager.getClientId();
-      if (clientId) {
-        config.headers['X-Client-ID'] = clientId;
+      let clientId = tokenManager.getClientId();
+      
+      // Split Brain Detection:
+      // If we have a token (Authenticated) but NO clientId (Device Binding lost),
+      // we MUST NOT generate a new random clientId. The backend will reject the token
+      // because it's bound to the *original* clientId.
+      if (token && !clientId) {
+        console.warn('[API] Güvenlik Uyarısı: Token mevcut ancak Cihaz Kimliği (Client ID) kayıp. Oturum sonlandırılıyor.');
+        tokenManager.clearTokens();
+        if (typeof window !== 'undefined') {
+          // Force reload/redirect to ensure clean slate
+          window.location.href = '/login?reason=device_binding_lost';
+        }
+        // Cancel the request
+        const controller = new AbortController();
+        config.signal = controller.signal;
+        controller.abort("Device binding lost");
+        return config;
       }
+
+      // Fallback: Only generate new ID if we are NOT authenticated yet (Public user)
+      if (!clientId) {
+        console.warn('[API] Client ID bulunamadı, yeni ziyaretçi için üretiliyor...');
+        clientId = uuidv4();
+        try {
+          localStorage.setItem(CLIENT_ID_KEY, clientId);
+        } catch (e) {
+          console.error('[API] localStorage yazılamadı:', e);
+        }
+      }
+      
+      // Always set the header - this is mandatory for authenticated requests
+      config.headers['X-Client-ID'] = clientId;
     }
     
     // Add home ID header if available (from localStorage, set by HomeContext)
