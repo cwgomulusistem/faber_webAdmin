@@ -39,8 +39,9 @@ export const authService = {
       return { require2FA: true };
     }
 
-    // Backend returns token directly (not wrapped in ApiResponse)
-    const data = response.data as TokenResponse;
+    // Backend now returns wrapped ApiResponse
+    const responseData = response.data as ApiResponse<TokenResponse>;
+    const data = responseData.data!;
     tokenManager.setTokens(data.accessToken, data.refreshToken);
     
     return {
@@ -72,8 +73,9 @@ export const authService = {
       return { require2FA: true };
     }
 
-    // Backend returns token directly (not wrapped in ApiResponse)
-    const data = response.data as TokenResponse;
+    // Backend now returns wrapped ApiResponse
+    const responseData = response.data as ApiResponse<TokenResponse>;
+    const data = responseData.data!;
     tokenManager.setTokens(data.accessToken, data.refreshToken);
     
     return {
@@ -115,7 +117,8 @@ export const authService = {
     }
 
     // Registration successful - auto-login with tokens
-    const data = response.data as TokenResponse;
+    const responseData = response.data as ApiResponse<TokenResponse>;
+    const data = responseData.data!;
     tokenManager.setTokens(data.accessToken, data.refreshToken);
     
     return {
@@ -156,9 +159,9 @@ export const authService = {
       clientType: tokenManager.getClientType(),
     };
     
-    const response = await api.post<TokenResponse>('/auth/verify-2fa', verify2FAPayload);
-    // Backend returns token directly (not wrapped in ApiResponse)
-    const data = response.data;
+    const response = await api.post<ApiResponse<TokenResponse>>('/auth/verify-2fa', verify2FAPayload);
+    // Backend returns wrapped ApiResponse
+    const data = response.data.data!;
     
     tokenManager.setTokens(data.accessToken, data.refreshToken);
     
@@ -198,9 +201,9 @@ export const authService = {
       clientType: tokenManager.getClientType(),
     };
     
-    const response = await api.post<TokenResponse>('/auth/google', googlePayload);
-    // Backend returns token directly (not wrapped in ApiResponse)
-    const data = response.data;
+    const response = await api.post<ApiResponse<TokenResponse>>('/auth/google', googlePayload);
+    // Backend returns wrapped ApiResponse
+    const data = response.data.data!;
     
     tokenManager.setTokens(data.accessToken, data.refreshToken);
     
