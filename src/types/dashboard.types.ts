@@ -16,6 +16,19 @@ export type WidgetType =
   | 'GAUGE'
   | 'AREA';
 
+// Bento Grid Widget Sizes
+export type WidgetSize = '1x1' | '2x1' | '1x2' | '2x2' | '3x2' | '4x2';
+
+// Size to grid span mapping
+export const WIDGET_SIZE_MAP: Record<WidgetSize, { w: number; h: number }> = {
+  '1x1': { w: 1, h: 1 },
+  '2x1': { w: 2, h: 1 },
+  '1x2': { w: 1, h: 2 },
+  '2x2': { w: 2, h: 2 },
+  '3x2': { w: 3, h: 2 },
+  '4x2': { w: 4, h: 2 },
+};
+
 // ==================== LAYOUT STRUCTURES ====================
 
 export interface WebLayout {
