@@ -38,13 +38,14 @@ export function EntityProvider({ children }: { children: React.ReactNode }) {
     socketService.getEntities().then((initialEntities) => {
         const entityMap: Record<string, Entity> = {};
         if (Array.isArray(initialEntities)) {
-             initialEntities.forEach((e: Entity) => entityMap[e.entityId] = e);
+             (initialEntities as Entity[]).forEach((e) => entityMap[e.entityId] = e);
              setEntities(entityMap);
         }
     });
 
     // Subscribe to updates
-    const unsubscribe = socketService.subscribeToEntities((data: { entityId: string; new_state: EntityState }) => {
+    const unsubscribe = socketService.subscribeToEntities((rawData: unknown) => {
+      const data = rawData as { entityId: string; new_state: EntityState };
       setEntities((prev) => ({
         ...prev,
         [data.entityId]: {

@@ -217,7 +217,7 @@ export function useHass(options: UseHassOptions = {}): HassContext {
       const ws = initWebSocketService(wsUrl, accessToken);
       wsRef.current = ws;
 
-      ws.connect()
+      ws.connectAsync()
         .then(() => {
           console.log('WebSocket connected');
         })
@@ -226,7 +226,7 @@ export function useHass(options: UseHassOptions = {}): HassContext {
         });
 
       const unsubState = ws.onStateChange((newStates) => {
-        setStates(newStates);
+        setStates(newStates as Record<string, HassEntity>);
       });
 
       const unsubConnection = ws.onConnectionChange((isConnected) => {
@@ -258,7 +258,9 @@ export function useHass(options: UseHassOptions = {}): HassContext {
   ): Promise<void> => {
     // WebSocket mode
     if (wsRef.current) {
-      await wsRef.current.callService(domain, service, data, target);
+      // Handle both string and string[] entity_id
+      const entityId = Array.isArray(target?.entity_id) ? target?.entity_id[0] : target?.entity_id;
+      await wsRef.current.callService(domain, service, data, entityId);
       return;
     }
 
