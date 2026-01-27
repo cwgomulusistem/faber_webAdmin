@@ -1,26 +1,36 @@
-// WebSocket Service v2.0
+// WebSocket Service v3.0
 // Native WebSocket implementation with reconnection and event emitter
-// Compatible with Faber Backend v2.0 Enterprise Architecture
+// Compatible with Faber Backend v3.0 Enterprise Architecture
 // Features: Room-based broadcasting, State restoration, Graceful shutdown handling
+// v3.0: Entity-based messaging, Device discovery, Online/Offline status
 
 import env from '../config/env';
 import { tokenManager } from './api.service';
 import type { Device, DeviceAttributes } from '../types/device.types';
+import type { 
+  DeviceEntity, 
+  EntityUpdatePayload,
+  DeviceDiscoveredPayload,
+  DeviceOfflinePayload 
+} from '../types/entity.types';
 
-// Message types (must match backend v2.0)
+// Message types (must match backend v3.0)
 type MessageType =
-  | 'entity_update'
+  | 'entity_update'           // v3.0: Entity value change
   | 'device_update'
-  | 'device_telemetry'      // Real-time telemetry from ESP32 devices
+  | 'device_telemetry'        // Real-time telemetry from ESP32 devices
+  | 'device_discovered'       // v3.0: New device announces entities
+  | 'device_offline'          // v3.0: LWT - device went offline
+  | 'device_online'           // v3.0: Device came back online
   | 'dashboard:layout_updated'
-  | 'SHUTDOWN'              // Graceful server shutdown notification
+  | 'SHUTDOWN'                // Graceful server shutdown notification
   | 'result'
   | 'error'
   | 'command'
   | 'subscribe_entities'
   | 'call_service'
-  | 'join:home'             // Join home room for room-based broadcasts
-  | 'leave:home'            // Leave home room
+  | 'join:home'               // Join home room for room-based broadcasts
+  | 'leave:home'              // Leave home room
   | 'device:subscribe'
   | 'device:unsubscribe';
 
@@ -40,12 +50,18 @@ interface ShutdownPayload {
   retry_in: number;
 }
 
-// Telemetry payload from ESP32 devices (v2.0)
+// Telemetry payload from ESP32 devices
 interface TelemetryPayload {
   deviceId: string;
   topic: string;
   payload: Record<string, unknown>;
 }
+
+// v3.0: Callback types for entity-based messaging
+export type EntityUpdateCallback = (data: EntityUpdatePayload) => void;
+export type DeviceDiscoveredCallback = (deviceId: string, entities: DeviceEntity[]) => void;
+export type DeviceOfflineCallback = (deviceId: string) => void;
+export type DeviceOnlineCallback = (deviceId: string) => void;
 
 export type DeviceUpdateCallback = (device: Device) => void;
 export type TelemetryCallback = (data: TelemetryPayload) => void;
@@ -56,9 +72,16 @@ class WebSocketService {
   private ws: WebSocket | null = null;
   private messageListeners: Map<string, Set<MessageCallback>> = new Map();
   private deviceListeners: Map<string, Set<DeviceUpdateCallback>> = new Map();
-  private telemetryListeners: Map<string, Set<TelemetryCallback>> = new Map(); // v2.0: Per-device telemetry
-  private globalTelemetryListeners: Set<TelemetryCallback> = new Set(); // v2.0: All telemetry
+  private telemetryListeners: Map<string, Set<TelemetryCallback>> = new Map(); // Per-device telemetry
+  private globalTelemetryListeners: Set<TelemetryCallback> = new Set(); // All telemetry
   private connectionListeners: Set<ConnectionCallback> = new Set();
+  
+  // v3.0: Entity-based listeners
+  private entityUpdateListeners: Map<string, Set<EntityUpdateCallback>> = new Map(); // Per-entity
+  private globalEntityUpdateListeners: Set<EntityUpdateCallback> = new Set(); // All entities
+  private discoveryListeners: Set<DeviceDiscoveredCallback> = new Set();
+  private offlineListeners: Set<DeviceOfflineCallback> = new Set();
+  private onlineListeners: Set<DeviceOnlineCallback> = new Set();
   
   // Reconnection state
   private reconnectAttempts = 0;
@@ -230,12 +253,47 @@ class WebSocketService {
         }
       }
       
-      // v2.0: Handle real-time telemetry from ESP32 devices
+      // Handle real-time telemetry from ESP32 devices
       // Telemetry is room-based - only received if joined to the device's home
       if (message.type === 'device_telemetry') {
         const data = message.payload as TelemetryPayload;
         if (data?.deviceId) {
           this.notifyTelemetryListeners(data.deviceId, data);
+        }
+      }
+      
+      // v3.0: Handle entity value updates
+      if (message.type === 'entity_update') {
+        const data = message.payload as EntityUpdatePayload;
+        if (data?.entityId) {
+          this.notifyEntityUpdateListeners(data.entityId, data);
+        }
+      }
+      
+      // v3.0: Handle device discovery (new device announces capabilities)
+      if (message.type === 'device_discovered') {
+        const data = message.payload as DeviceDiscoveredPayload;
+        if (data?.deviceId && data?.entities) {
+          console.log('WebSocket: Device discovered:', data.deviceId, 'with', data.entities.length, 'entities');
+          this.notifyDiscoveryListeners(data.deviceId, data.entities);
+        }
+      }
+      
+      // v3.0: Handle device offline (LWT)
+      if (message.type === 'device_offline') {
+        const data = message.payload as DeviceOfflinePayload;
+        if (data?.deviceId) {
+          console.log('WebSocket: Device went offline:', data.deviceId);
+          this.notifyOfflineListeners(data.deviceId);
+        }
+      }
+      
+      // v3.0: Handle device online
+      if (message.type === 'device_online') {
+        const data = message.payload as { deviceId: string };
+        if (data?.deviceId) {
+          console.log('WebSocket: Device came online:', data.deviceId);
+          this.notifyOnlineListeners(data.deviceId);
         }
       }
       
@@ -389,7 +447,7 @@ class WebSocketService {
   }
   
   /**
-   * Notify telemetry listeners (v2.0)
+   * Notify telemetry listeners
    */
   private notifyTelemetryListeners(deviceId: string, data: TelemetryPayload): void {
     // Notify device-specific listeners
@@ -400,6 +458,41 @@ class WebSocketService {
     
     // Notify global telemetry listeners
     this.globalTelemetryListeners.forEach((callback) => callback(data));
+  }
+  
+  /**
+   * Notify entity update listeners (v3.0)
+   */
+  private notifyEntityUpdateListeners(entityId: string, data: EntityUpdatePayload): void {
+    // Notify entity-specific listeners
+    const listeners = this.entityUpdateListeners.get(entityId);
+    if (listeners) {
+      listeners.forEach((callback) => callback(data));
+    }
+    
+    // Notify global entity update listeners
+    this.globalEntityUpdateListeners.forEach((callback) => callback(data));
+  }
+  
+  /**
+   * Notify discovery listeners (v3.0)
+   */
+  private notifyDiscoveryListeners(deviceId: string, entities: DeviceEntity[]): void {
+    this.discoveryListeners.forEach((callback) => callback(deviceId, entities));
+  }
+  
+  /**
+   * Notify offline listeners (v3.0)
+   */
+  private notifyOfflineListeners(deviceId: string): void {
+    this.offlineListeners.forEach((callback) => callback(deviceId));
+  }
+  
+  /**
+   * Notify online listeners (v3.0)
+   */
+  private notifyOnlineListeners(deviceId: string): void {
+    this.onlineListeners.forEach((callback) => callback(deviceId));
   }
   
   /**
@@ -530,7 +623,7 @@ class WebSocketService {
   }
   
   /**
-   * Subscribe to all telemetry from joined home (v2.0)
+   * Subscribe to all telemetry from joined home
    * NOTE: You must join a home room first to receive telemetry
    */
   onAllTelemetry(callback: TelemetryCallback): () => void {
@@ -538,6 +631,93 @@ class WebSocketService {
     return () => {
       this.globalTelemetryListeners.delete(callback);
     };
+  }
+  
+  // =========================================
+  // v3.0 Entity-Based Subscription Methods
+  // =========================================
+  
+  /**
+   * Subscribe to updates for a specific entity (v3.0)
+   * @param entityId Entity identifier (e.g., "relay_1")
+   */
+  onEntityUpdate(entityId: string, callback: EntityUpdateCallback): () => void {
+    if (!this.entityUpdateListeners.has(entityId)) {
+      this.entityUpdateListeners.set(entityId, new Set());
+    }
+    this.entityUpdateListeners.get(entityId)!.add(callback);
+    
+    return () => {
+      const listeners = this.entityUpdateListeners.get(entityId);
+      if (listeners) {
+        listeners.delete(callback);
+        if (listeners.size === 0) {
+          this.entityUpdateListeners.delete(entityId);
+        }
+      }
+    };
+  }
+  
+  /**
+   * Subscribe to all entity updates from joined home (v3.0)
+   * NOTE: You must join a home room first to receive updates
+   */
+  onAllEntityUpdates(callback: EntityUpdateCallback): () => void {
+    this.globalEntityUpdateListeners.add(callback);
+    return () => {
+      this.globalEntityUpdateListeners.delete(callback);
+    };
+  }
+  
+  /**
+   * Subscribe to device discovery events (v3.0)
+   * Called when a new device announces its capabilities
+   */
+  onDeviceDiscovered(callback: DeviceDiscoveredCallback): () => void {
+    this.discoveryListeners.add(callback);
+    return () => {
+      this.discoveryListeners.delete(callback);
+    };
+  }
+  
+  /**
+   * Subscribe to device offline events (v3.0)
+   * Called when LWT indicates device disconnected
+   */
+  onDeviceOffline(callback: DeviceOfflineCallback): () => void {
+    this.offlineListeners.add(callback);
+    return () => {
+      this.offlineListeners.delete(callback);
+    };
+  }
+  
+  /**
+   * Subscribe to device online events (v3.0)
+   * Called when device reconnects
+   */
+  onDeviceOnline(callback: DeviceOnlineCallback): () => void {
+    this.onlineListeners.add(callback);
+    return () => {
+      this.onlineListeners.delete(callback);
+    };
+  }
+  
+  /**
+   * Send a command to an entity (v3.0)
+   */
+  sendEntityCommand(
+    deviceId: string,
+    entityId: string,
+    command: string | number | boolean
+  ): void {
+    this.send({
+      type: 'command',
+      payload: {
+        device_id: deviceId,
+        entity_id: entityId,
+        command: command,
+      },
+    });
   }
   
   /**

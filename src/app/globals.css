@@ -111,3 +111,131 @@ input[type="range"]::-webkit-slider-runnable-track {
     transform: translateY(0);
   }
 }
+
+/* =========================================
+   v3.0 Premium Glassmorphism Styles
+   ========================================= */
+
+/* Glass Card - Base */
+.glass-card {
+  @apply bg-slate-900/40 backdrop-blur-xl border border-white/10 rounded-2xl;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  background-image: linear-gradient(
+    to bottom right, 
+    rgba(255, 255, 255, 0.05), 
+    rgba(255, 255, 255, 0)
+  );
+}
+
+/* Glass Card - Active State (for switches/lights that are ON) */
+.glass-card-active {
+  @apply bg-slate-900/40 backdrop-blur-xl border border-indigo-500/30 rounded-2xl;
+  box-shadow: 
+    0 8px 32px 0 rgba(0, 0, 0, 0.37),
+    0 0 20px rgba(99, 102, 241, 0.3);
+  background-image: linear-gradient(
+    to bottom right, 
+    rgba(99, 102, 241, 0.1), 
+    rgba(99, 102, 241, 0)
+  );
+}
+
+/* Widget Card - Hover Effects */
+.widget-card {
+  @apply transition-all duration-200;
+}
+.widget-card:hover {
+  @apply shadow-indigo-500/20 shadow-lg;
+  transform: scale(1.02);
+}
+
+/* Pulse Glow Animation - Triggered when value updates */
+.value-update-pulse {
+  animation: pulse-glow 1s ease-out;
+}
+
+@keyframes pulse-glow {
+  0% { 
+    box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4); 
+  }
+  100% { 
+    box-shadow: 0 0 20px 10px rgba(99, 102, 241, 0); 
+  }
+}
+
+/* Offline Device Overlay */
+.device-offline {
+  @apply relative;
+}
+.device-offline::after {
+  content: '';
+  @apply absolute inset-0 bg-gray-900/60 rounded-xl;
+  backdrop-filter: grayscale(100%);
+}
+
+/* Pending Command Overlay */
+.device-pending {
+  @apply opacity-70;
+}
+
+/* Shimmer Effect for Loading States */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.1) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
+}
+
+/* Number Ticker Animation */
+@keyframes number-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.number-ticker {
+  animation: number-slide-up 0.3s ease-out;
+}
+
+/* Responsive Widget Grid */
+.widget-grid {
+  @apply grid gap-4 p-4;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+}
+
+/* Dark Mode Deep Blacks */
+.dark .glass-card {
+  @apply bg-black/40;
+}
+
+/* Success/Error States */
+.state-success {
+  @apply text-green-400;
+}
+.state-error {
+  @apply text-red-400;
+}
+.state-warning {
+  @apply text-yellow-400;
+}
+.state-offline {
+  @apply text-gray-400;
+}
