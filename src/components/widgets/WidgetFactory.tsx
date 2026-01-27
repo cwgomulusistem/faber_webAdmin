@@ -4,6 +4,7 @@ import React, { memo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { DeviceEntity, EntityType } from '@/types/entity.types';
 import { formatEntityValue } from '@/types/entity.types';
+import { WidgetErrorBoundary } from '@/components/ErrorBoundary';
 
 // Import Entity Widgets
 import SensorWidget from './EntityWidgets/SensorWidget';
@@ -47,6 +48,7 @@ interface WidgetFactoryProps {
 /**
  * WidgetFactory - Dynamically renders widgets based on entity type
  * Uses React.memo for performance optimization
+ * Wrapped with ErrorBoundary to prevent single widget crash from taking down dashboard
  */
 const WidgetFactory = memo<WidgetFactoryProps>(
   ({ entity, value, isOnline = true, isPending = false, onControl }) => {
@@ -54,22 +56,31 @@ const WidgetFactory = memo<WidgetFactoryProps>(
     const Component = EntityWidgetMap[entity.type] || GenericWidget;
 
     return (
-      <motion.div
-        layout
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.95 }}
-        transition={{ duration: 0.2 }}
-        className="widget-card"
+      <WidgetErrorBoundary
+        entityId={entity.id}
+        entityName={entity.name}
+        onError={(error, errorInfo) => {
+          // Log to analytics/monitoring in production
+          console.error(`[Widget Error] ${entity.id}:`, error.message);
+        }}
       >
-        <Component
-          entity={entity}
-          value={value}
-          isOnline={isOnline}
-          isPending={isPending}
-          onControl={onControl}
-        />
-      </motion.div>
+        <motion.div
+          layout
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.95 }}
+          transition={{ duration: 0.2 }}
+          className="widget-card"
+        >
+          <Component
+            entity={entity}
+            value={value}
+            isOnline={isOnline}
+            isPending={isPending}
+            onControl={onControl}
+          />
+        </motion.div>
+      </WidgetErrorBoundary>
     );
   },
   // Custom comparison - only re-render when value, isOnline, or isPending changes
