@@ -106,8 +106,12 @@ class WebSocketService {
   private currentHomeId: string | null = null;
   private subscribedDevices: Set<string> = new Set();
 
+  // Auth token for connection
+  private authToken: string | null = null;
+
   /**
    * Initialize WebSocket connection
+   * v3.1: Token sent via auth message after connection (NOT in URL for security)
    */
   connect(): void {
     if (this.ws?.readyState === WebSocket.OPEN || this.isConnecting) return;
@@ -120,9 +124,10 @@ class WebSocketService {
     }
     
     this.isConnecting = true;
+    this.authToken = token;
     
-    // Build WebSocket URL with token as query parameter
-    const wsUrl = this.buildWebSocketUrl(token);
+    // Build WebSocket URL (NO token in URL - security)
+    const wsUrl = this.buildWebSocketUrl();
     
     try {
       this.ws = new WebSocket(wsUrl);
@@ -136,13 +141,14 @@ class WebSocketService {
   
   /**
    * Build WebSocket URL from API URL
+   * v3.1: Token NOT included in URL (sent via auth message)
    */
-  private buildWebSocketUrl(token: string): string {
+  private buildWebSocketUrl(): string {
     const baseUrl = env.SOCKET_URL || env.API_URL;
     // Convert http(s) to ws(s)
     const wsProtocol = baseUrl.startsWith('https') ? 'wss' : 'ws';
     const wsHost = baseUrl.replace(/^https?:\/\//, '');
-    return `${wsProtocol}://${wsHost}/ws?token=${encodeURIComponent(token)}`;
+    return `${wsProtocol}://${wsHost}/ws`;
   }
   
   /**
@@ -178,7 +184,16 @@ class WebSocketService {
     if (!this.ws) return;
     
     this.ws.onopen = () => {
-      console.log('WebSocket: Connected');
+      console.log('WebSocket: Connected, sending auth...');
+      
+      // v3.1: Send auth message with token (NOT in URL for security)
+      if (this.authToken) {
+        this.ws?.send(JSON.stringify({
+          type: 'auth',
+          payload: { token: this.authToken }
+        }));
+      }
+      
       this.isConnecting = false;
       this.reconnectAttempts = 0;
       this.isServerShutdown = false;
