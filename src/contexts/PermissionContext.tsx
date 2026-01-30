@@ -8,7 +8,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from './AuthContext';
 import { useSocket } from '@/hooks/useSocket';
-import { api } from '@/services/api.service';
+import api from '@/services/api.service';
 import { getActiveHomeId } from '@/lib/utils';
 import { toast } from 'sonner';
 
