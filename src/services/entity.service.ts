@@ -8,6 +8,9 @@ import type {
   EntityValue 
 } from '@/types/entity.types';
 
+// Re-export types for consumers
+export type { HomeEntityResponse, DeviceEntity, EntityValue };
+
 /**
  * Get all entities for a home
  * Includes device context and online status
