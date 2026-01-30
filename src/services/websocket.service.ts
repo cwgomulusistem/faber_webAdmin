@@ -736,6 +736,14 @@ class WebSocketService {
   }
   
   /**
+   * Subscribe to any event type by name (PBAC v2.0)
+   * Generic method for subscribing to custom events like PERMISSION_UPDATE
+   */
+  subscribeToEvent(eventType: string, callback: MessageCallback): () => void {
+    return this.on(eventType, callback);
+  }
+  
+  /**
    * Check if WebSocket is connected
    */
   get isConnected(): boolean {

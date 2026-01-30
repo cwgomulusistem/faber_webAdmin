@@ -16,6 +16,9 @@ interface TelemetryData {
   payload: Record<string, unknown>;
 }
 
+// Generic event callback type
+type EventCallback = (payload: unknown) => void;
+
 interface SocketContextType {
   // Connection state
   isConnected: boolean;
@@ -35,6 +38,9 @@ interface SocketContextType {
   
   // v2.0: Dashboard updates (Server-Driven UI)
   onDashboardUpdate: (callback: (homeId: string) => void) => () => void;
+  
+  // PBAC v2.0: Generic event subscription (for PERMISSION_UPDATE, etc.)
+  subscribeToEvent: (eventType: string, callback: EventCallback) => () => void;
 }
 
 const SocketContext = createContext<SocketContextType>({
@@ -47,6 +53,7 @@ const SocketContext = createContext<SocketContextType>({
   onDeviceTelemetry: () => () => {},
   onAllTelemetry: () => () => {},
   onDashboardUpdate: () => () => {},
+  subscribeToEvent: () => () => {},
 });
 
 export function useSocket(): SocketContextType {
@@ -129,6 +136,11 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     return socketService.onDashboardUpdate(callback);
   }, []);
 
+  // PBAC v2.0: Generic event subscription
+  const subscribeToEvent = useCallback((eventType: string, callback: EventCallback) => {
+    return socketService.subscribeToEvent(eventType, callback);
+  }, []);
+
   const value = useMemo(() => ({
     isConnected,
     isInitializing,
@@ -139,7 +151,8 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     onDeviceTelemetry,
     onAllTelemetry,
     onDashboardUpdate,
-  }), [isConnected, isInitializing, subscribeToDevice, joinHome, leaveHome, currentHomeId, onDeviceTelemetry, onAllTelemetry, onDashboardUpdate]);
+    subscribeToEvent,
+  }), [isConnected, isInitializing, subscribeToDevice, joinHome, leaveHome, currentHomeId, onDeviceTelemetry, onAllTelemetry, onDashboardUpdate, subscribeToEvent]);
 
   return (
     <SocketContext.Provider value={value}>

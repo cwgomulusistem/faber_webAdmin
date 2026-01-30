@@ -16,7 +16,7 @@ function LoginForm() {
   const { adminLogin, verify2FA } = useAuth();
   
   const [step, setStep] = useState<'login' | '2fa'>('login');
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState(''); // Email OR Username (PBAC v2.0)
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
@@ -31,14 +31,15 @@ function LoginForm() {
 
     try {
       if (step === 'login') {
-        const response = await adminLogin({ email, password });
+        // Backend accepts both email and username in the 'email' field
+        const response = await adminLogin({ email: identifier, password });
         if (response && response.require2FA) {
           setStep('2fa');
         } else {
           router.push(redirectPath);
         }
       } else {
-        await verify2FA({ email, code });
+        await verify2FA({ email: identifier, code });
         router.push(redirectPath);
       }
     } catch (err: any) {
@@ -73,14 +74,15 @@ function LoginForm() {
           {step === 'login' ? (
             <>
               <div className={styles.field}>
-                <label className={styles.label}>E-posta</label>
+                <label className={styles.label}>E-posta veya Kullanıcı Adı</label>
                 <input
-                  type="email"
+                  type="text"
                   required
                   className={styles.input}
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@faber.app"
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
+                  placeholder="ornek@email.com veya kullanici_adi"
+                  autoComplete="username"
                   disabled={isLoading}
                 />
               </div>
@@ -94,6 +96,7 @@ function LoginForm() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
+                  autoComplete="current-password"
                   disabled={isLoading}
                 />
               </div>

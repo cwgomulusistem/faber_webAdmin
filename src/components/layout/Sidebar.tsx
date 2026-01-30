@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '../../hooks/useAuth';
+import { usePermission } from '../../contexts/PermissionContext';
 import {
   LayoutDashboard,
   Router,
@@ -16,7 +17,8 @@ import {
   ShieldCheck,
   ChevronDown,
   Check,
-  Plus
+  Plus,
+  FileText
 } from 'lucide-react';
 import { cn, getActiveHomeId, setActiveHomeId } from '@/lib/utils';
 import api from '@/services/api.service';
@@ -26,29 +28,38 @@ interface NavItem {
   label: string;
   href: string;
   icon: React.ReactNode;
+  menuKey: string; // PBAC v2.0: Menu permission key
   badge?: number;
 }
 
+// PBAC v2.0: Each nav item has a menuKey for permission checking
 const navItems: NavItem[] = [
-  { label: 'Dashboard', href: '/dashboard', icon: <LayoutDashboard size={20} /> },
-  { label: 'Evlerim', href: '/dashboard/homes', icon: <Home size={20} /> },
-  { label: 'Cihazlar', href: '/dashboard/devices', icon: <Router size={20} /> },
-  { label: 'Üyeler', href: '/dashboard/members', icon: <Users size={20} /> },
-  { label: 'Odalar', href: '/dashboard/rooms', icon: <DoorOpen size={20} /> },
-  { label: 'Otomasyon', href: '/dashboard/scenes', icon: <Zap size={20} /> },
-  { label: 'İzinler', href: '/dashboard/permissions', icon: <ShieldCheck size={20} /> },
-  { label: 'Kayıtlar', href: '/dashboard/logs', icon: <ShieldCheck size={20} /> },
-  { label: 'Ayarlar', href: '/dashboard/settings', icon: <Settings size={20} /> },
+  { label: 'Dashboard', href: '/dashboard', icon: <LayoutDashboard size={20} />, menuKey: 'dashboard' },
+  { label: 'Evlerim', href: '/dashboard/homes', icon: <Home size={20} />, menuKey: 'homes' },
+  { label: 'Cihazlar', href: '/dashboard/devices', icon: <Router size={20} />, menuKey: 'devices' },
+  { label: 'Üyeler', href: '/dashboard/members', icon: <Users size={20} />, menuKey: 'members' },
+  { label: 'Odalar', href: '/dashboard/rooms', icon: <DoorOpen size={20} />, menuKey: 'rooms' },
+  { label: 'Otomasyon', href: '/dashboard/scenes', icon: <Zap size={20} />, menuKey: 'scenes' },
+  { label: 'İzinler', href: '/dashboard/permissions', icon: <ShieldCheck size={20} />, menuKey: 'members' },
+  { label: 'Kayıtlar', href: '/dashboard/logs', icon: <FileText size={20} />, menuKey: 'logs' },
+  { label: 'Ayarlar', href: '/dashboard/settings', icon: <Settings size={20} />, menuKey: 'settings' },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
   const { logout, user } = useAuth();
+  const { can, isLoading: permissionsLoading } = usePermission();
 
   const [deviceCount, setDeviceCount] = useState<number>(0);
   const [homes, setHomes] = useState<any[]>([]);
   const [activeHome, setActiveHome] = useState<any>(null);
   const [isHomeMenuOpen, setIsHomeMenuOpen] = useState(false);
+
+  // PBAC v2.0: Filter nav items based on permissions
+  const visibleNavItems = useMemo(() => {
+    if (permissionsLoading) return navItems; // Show all while loading
+    return navItems.filter(item => can('view', 'menu', item.menuKey));
+  }, [can, permissionsLoading]);
 
   useEffect(() => {
     const fetchHomes = async () => {
@@ -209,10 +220,10 @@ export function Sidebar() {
         </div>
 
         <div className="px-4 py-6 flex-1 overflow-y-auto custom-scrollbar">
-          {/* Navigation */}
+          {/* Navigation - PBAC v2.0: Only show items user has permission for */}
           <nav className="space-y-1.5">
             <p className="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Menü</p>
-            {navItems.map((item) => {
+            {visibleNavItems.map((item) => {
               const isActive = pathname === item.href ||
                 (item.href !== '/dashboard' && pathname.startsWith(item.href));
               
