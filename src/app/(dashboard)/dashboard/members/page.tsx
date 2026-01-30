@@ -1,17 +1,21 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Home, MoreVertical, Key, Clock, Copy, Share, Trash2 } from 'lucide-react';
+import { Plus, Search, Home, Key, Clock, Bell } from 'lucide-react';
 import api from '@/services/api.service';
 import { cn, getActiveHomeId } from '@/lib/utils';
 import { InviteMemberModal } from '@/components/members/InviteMemberModal';
 import { MemberCard } from '@/components/members/MemberCard';
+import { ConnectionStatus } from '@/components/common/ConnectionStatus';
+import { useSocket } from '@/hooks/useSocket';
 
 export default function MembersPage() {
     const [members, setMembers] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
     const [filter, setFilter] = useState('All');
+    const [searchTerm, setSearchTerm] = useState('');
+    const { isConnected } = useSocket();
 
     const fetchMembers = async () => {
         try {
@@ -20,22 +24,16 @@ export default function MembersPage() {
             if (!homeId) return;
 
             const res = await api.get(`/users/sub?homeId=${homeId}`);
-            // Backend returns { subUsers: [...], total: ... }
-            // Let's assume res.data.subUsers is the array.
-            // If wrapping exists: res.data.data.subUsers?
-            // Checking handler: c.JSON(http.StatusOK, result) -> SubUserListResponse
-            // So: res.data.subUsers
             const list = res.data.subUsers || res.data.data?.subUsers || [];
 
-            // Mapper
             const mapped = list.map((u: any) => ({
                 id: u.id,
                 name: u.fullName,
-                role: u.role === 'master' ? 'Admin' : 'Resident', // Default mapping
+                role: u.role === 'master' ? 'Admin' : 'Resident',
                 type: u.role,
-                status: 'At Home', // Mock status
+                status: 'At Home',
                 avatar: u.avatar,
-                permissions: 'Control lights, locks', // Mock
+                permissions: 'Control lights, locks',
                 isGuest: !!u.accessExpiresAt
             }));
 
@@ -55,52 +53,74 @@ export default function MembersPage() {
     const guests = members.filter(m => m.isGuest);
 
     return (
-        <div className="flex flex-col h-full bg-background-light dark:bg-background-dark overflow-y-auto">
-            <div className="max-w-[1200px] mx-auto p-6 md:p-10 flex flex-col gap-8 w-full">
-
-                {/* Header */}
-                <header className="flex flex-col md:flex-row md:items-start md:justify-between gap-6">
-                    <div className="flex flex-col gap-2 max-w-2xl">
-                        <h1 className="text-3xl md:text-4xl font-black tracking-tight text-slate-900 dark:text-white">Members & Access</h1>
-                        <p className="text-slate-500 dark:text-slate-400 text-lg leading-relaxed">Manage household members, guests, and their permissions securely.</p>
+        <div className="flex flex-col h-full bg-background-light dark:bg-background-dark overflow-hidden">
+            {/* Standard Header */}
+            <header className="h-16 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-6 shrink-0 z-10">
+                <div className="flex items-center gap-6">
+                    <div className="flex flex-col">
+                        <h1 className="text-lg font-bold text-gray-900 dark:text-white">Üyeler</h1>
+                        <span className="text-xs text-gray-500">Üye Yönetimi</span>
                     </div>
-                    <button
-                        onClick={() => setIsInviteModalOpen(true)}
-                        className="flex items-center justify-center gap-2 bg-primary hover:bg-blue-600 text-white px-6 py-3 rounded-xl font-bold transition-all shadow-lg shadow-blue-500/20 active:scale-95 shrink-0"
-                    >
-                        <Plus size={20} />
-                        <span>Invite New Member</span>
-                    </button>
-                </header>
+                </div>
 
-                {/* Filters */}
-                <div className="flex flex-col lg:flex-row gap-4 items-stretch lg:items-center justify-between">
-                    <div className="relative flex-1 max-w-lg">
-                        <div className="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none text-slate-400">
-                            <Search size={20} />
-                        </div>
+                <div className="flex-1 max-w-md mx-8 hidden md:block">
+                    <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                         <input
-                            className="w-full h-12 pl-12 pr-4 bg-white dark:bg-surface-dark border-0 ring-1 ring-slate-200 dark:ring-slate-700 focus:ring-2 focus:ring-primary rounded-xl text-base placeholder:text-slate-400 dark:text-white transition-all shadow-sm outline-none"
-                            placeholder="Search members by name or role..."
                             type="text"
+                            placeholder="Üye ara..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className={cn(
+                                "w-full pl-10 pr-4 py-2 rounded-xl text-sm",
+                                "bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700",
+                                "focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none",
+                                "placeholder-gray-400 text-gray-900 dark:text-white transition-all"
+                            )}
                         />
                     </div>
-                    <div className="flex gap-2 overflow-x-auto pb-2 lg:pb-0 no-scrollbar">
-                        {['All Members', 'Admins', 'Residents', 'Guests'].map((f) => (
-                            <button
-                                key={f}
-                                onClick={() => setFilter(f)}
-                                className={cn(
-                                    "flex items-center px-4 h-10 rounded-xl text-sm font-medium whitespace-nowrap transition-all",
-                                    filter === f
-                                        ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold"
-                                        : "bg-white dark:bg-surface-dark ring-1 ring-slate-200 dark:ring-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
-                                )}
-                            >
-                                {f}
-                            </button>
-                        ))}
+                </div>
+
+                <div className="flex items-center gap-4">
+                    <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-50 dark:bg-gray-800">
+                        <span className="text-xs font-medium text-gray-500">Sistem Durumu</span>
+                        <ConnectionStatus />
                     </div>
+
+                    <button className="relative p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                        <Bell className="w-5 h-5 text-gray-500" />
+                        <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
+                    </button>
+
+                    <button
+                        onClick={() => setIsInviteModalOpen(true)}
+                        className="flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-xl bg-primary hover:bg-blue-600 text-white px-4 py-2 shadow-sm transition-all active:scale-95 text-sm font-semibold"
+                    >
+                        <Plus size={18} />
+                        <span>Üye Davet Et</span>
+                    </button>
+                </div>
+            </header>
+
+            <main className="flex-1 overflow-y-auto p-6 md:p-8">
+                <div className="max-w-[1200px] mx-auto flex flex-col gap-8 w-full">
+
+                {/* Filters */}
+                <div className="flex gap-2 overflow-x-auto pb-2 lg:pb-0 no-scrollbar">
+                    {['Tümü', 'Adminler', 'Sakinler', 'Misafirler'].map((f) => (
+                        <button
+                            key={f}
+                            onClick={() => setFilter(f)}
+                            className={cn(
+                                "flex items-center px-4 h-10 rounded-xl text-sm font-medium whitespace-nowrap transition-all",
+                                filter === f
+                                    ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold"
+                                    : "bg-white dark:bg-surface-dark ring-1 ring-slate-200 dark:ring-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
+                            )}
+                        >
+                            {f}
+                        </button>
+                    ))}
                 </div>
 
                 {/* Residents Section */}
@@ -154,7 +174,8 @@ export default function MembersPage() {
                     </div>
                 </section>
 
-            </div>
+                </div>
+            </main>
 
             <InviteMemberModal open={isInviteModalOpen} onClose={() => setIsInviteModalOpen(false)} onSuccess={fetchMembers} />
         </div>

@@ -30,7 +30,7 @@ import { WidgetCard } from '@/components/dashboard/WidgetCard';
 import type { Section, Widget, DashboardConfig } from '@/components/dashboard/types';
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
 import api from '@/services/api.service';
-import socketService from '@/services/socket.service';
+import { useSocket } from '@/hooks/useSocket';
 
 // ============================================
 // Helper Mapping Functions
@@ -66,54 +66,6 @@ const mapDeviceToWidget = (device: any): Widget => {
 
 /* Header Components */
 
-// Faber Logo Component
-function FaberLogo() {
-  return (
-    <div className="flex items-center gap-3">
-      {/* Logo Icon */}
-      <div className="relative">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 via-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/30 overflow-hidden">
-          {/* Abstract smart home icon */}
-          <svg 
-            width="22" 
-            height="22" 
-            viewBox="0 0 24 24" 
-            fill="none" 
-            className="text-white"
-          >
-            <path 
-              d="M3 9.5L12 4L21 9.5V20C21 20.5523 20.5523 21 20 21H4C3.44772 21 3 20.5523 3 20V9.5Z" 
-              stroke="currentColor" 
-              strokeWidth="2" 
-              strokeLinejoin="round"
-            />
-            <circle cx="12" cy="13" r="3" fill="currentColor" opacity="0.9" />
-            <path 
-              d="M12 10V7M15 13H18M12 16V19M6 13H9" 
-              stroke="currentColor" 
-              strokeWidth="1.5" 
-              strokeLinecap="round"
-              opacity="0.6"
-            />
-          </svg>
-        </div>
-        {/* Animated pulse ring */}
-        <div className="absolute inset-0 rounded-xl bg-blue-500/20 animate-ping" style={{ animationDuration: '3s' }} />
-      </div>
-      
-      {/* Brand Text */}
-      <div className="flex flex-col">
-        <span className="text-xl font-black tracking-tight bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-600 bg-clip-text text-transparent">
-          FABER
-        </span>
-        <span className="text-[9px] font-semibold tracking-[0.25em] text-gray-400 uppercase">
-          Smart Home
-        </span>
-      </div>
-    </div>
-  );
-}
-
 interface DashboardHeaderProps {
   editMode: boolean;
   onToggleEditMode: () => void;
@@ -122,77 +74,73 @@ interface DashboardHeaderProps {
 
 function DashboardHeader({ editMode, onToggleEditMode, onAddSection }: DashboardHeaderProps) {
   return (
-    <header className="h-20 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-8 shrink-0 z-20 sticky top-0">
-      <div className="flex items-center gap-8">
-        {/* Faber Logo */}
-        <FaberLogo />
-        
-        {/* Page Title with separator */}
-        <div className="hidden sm:flex items-center gap-4">
-          <div className="w-px h-8 bg-gray-200 dark:bg-gray-700" />
-          <div className="flex flex-col">
-            <h1 className="text-lg font-bold text-gray-900 dark:text-white">Dashboard</h1>
-            <div className="flex items-center gap-2 text-xs text-gray-500">
-              <span className="hover:text-primary cursor-pointer">Ana Sayfa</span>
-            </div>
-          </div>
+    <header className="h-16 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-6 shrink-0 z-10">
+      {/* Left: Page Title */}
+      <div className="flex items-center gap-6">
+        <div className="flex flex-col">
+          <h1 className="text-lg font-bold text-gray-900 dark:text-white">Dashboard</h1>
+          <span className="text-xs text-gray-500">Ana Sayfa</span>
         </div>
       </div>
 
-      <div className="flex-1 max-w-2xl px-12">
+      {/* Center: Search */}
+      <div className="flex-1 max-w-md mx-8 hidden md:block">
         <div className="relative group">
-          <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
             <Search className="w-4 h-4 text-gray-400 group-focus-within:text-primary transition-colors" />
           </div>
           <input
             type="text"
             placeholder="Cihaz veya oda ara..."
             className={cn(
-              'block w-full pl-11 pr-14 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl',
-              'bg-gray-50 dark:bg-gray-800 text-sm',
-              'focus:ring-2 focus:ring-primary/20 focus:border-primary',
-              'dark:text-gray-200 placeholder-gray-400 transition shadow-sm'
+              'w-full pl-10 pr-4 py-2 rounded-xl text-sm',
+              'bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700',
+              'focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none',
+              'placeholder-gray-400 text-gray-900 dark:text-white transition-all'
             )}
           />
         </div>
       </div>
 
+      {/* Right: Status + Actions */}
       <div className="flex items-center gap-4">
-        <div className="hidden xl:flex flex-col items-end mr-2">
-          <span className="text-xs font-bold text-gray-700 dark:text-gray-200">Sistem Durumu</span>
+        {/* Connection Status */}
+        <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-50 dark:bg-gray-800">
+          <span className="text-xs font-medium text-gray-500">Sistem Durumu</span>
           <SocketStatus />
         </div>
 
-        <div className="h-8 w-px bg-gray-200 dark:bg-gray-700 mx-2"></div>
-
-        <button className="p-2.5 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition dark:text-gray-400 relative">
-          <Bell className="w-5 h-5" />
+        {/* Notification Button */}
+        <button className="relative p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+          <Bell className="w-5 h-5 text-gray-500" />
+          <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
         </button>
 
+        {/* Edit Mode Buttons */}
         {editMode ? (
           <div className="flex items-center gap-2">
             <button
               onClick={onAddSection}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 font-medium transition-all"
+              className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 font-medium transition-all text-sm"
             >
-              <Plus size={18} />
+              <Plus size={16} />
               <span className="hidden sm:inline">Bölüm Ekle</span>
             </button>
             <button
               onClick={onToggleEditMode}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-500 text-white hover:bg-blue-600 font-medium shadow-lg shadow-blue-500/25 transition-all"
+              className="flex items-center gap-2 px-3 py-2 rounded-xl bg-primary text-white hover:bg-primary/90 font-medium shadow-md shadow-primary/25 transition-all text-sm"
             >
-              <Check size={18} />
+              <Check size={16} />
               <span className="hidden sm:inline">Bitti</span>
             </button>
           </div>
         ) : (
           <button
             onClick={onToggleEditMode}
-            className="flex items-center gap-2 bg-gray-900 dark:bg-white text-white dark:text-gray-900 px-5 py-2.5 rounded-xl hover:bg-gray-800 dark:hover:bg-gray-100 transition shadow-lg shadow-gray-200 dark:shadow-none"
+            className="flex items-center gap-2 bg-gray-900 dark:bg-white text-white dark:text-gray-900 px-4 py-2 rounded-xl hover:bg-gray-800 dark:hover:bg-gray-100 transition text-sm font-semibold"
           >
             <Pencil className="w-4 h-4" />
-            <span className="text-sm font-semibold">Düzenle</span>
+            <span>Düzenle</span>
           </button>
         )}
       </div>
@@ -201,12 +149,22 @@ function DashboardHeader({ editMode, onToggleEditMode, onAddSection }: Dashboard
 }
 
 function SocketStatus() {
-  const [connected, setConnected] = useState(false);
-  useEffect(() => { return socketService.onConnectionChange(setConnected); }, []);
+  const { isConnected, isInitializing } = useSocket();
+  
+  // During initialization, show "Bağlanıyor" state
+  if (isInitializing && !isConnected) {
+    return (
+      <div className="flex items-center gap-1.5">
+        <span className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse"></span>
+        <span className="text-xs font-medium text-yellow-600 dark:text-yellow-400">Bağlanıyor</span>
+      </div>
+    );
+  }
+  
   return (
     <div className="flex items-center gap-1.5">
-      <span className={cn("w-2 h-2 rounded-full", connected ? "bg-green-500 animate-pulse" : "bg-red-500")}></span>
-      <span className={cn("text-xs font-medium", connected ? "text-green-600 dark:text-green-400" : "text-red-600")}>{connected ? "Çevrimiçi" : "Bağlantı Yok"}</span>
+      <span className={cn("w-2 h-2 rounded-full", isConnected ? "bg-green-500 animate-pulse" : "bg-red-500")}></span>
+      <span className={cn("text-xs font-medium", isConnected ? "text-green-600 dark:text-green-400" : "text-red-600")}>{isConnected ? "Çevrimiçi" : "Bağlantı Yok"}</span>
     </div>
   );
 }
@@ -315,6 +273,9 @@ function DashboardContent() {
   // Store all devices to allow reassignment
   const [allDevices, setAllDevices] = useState<any[]>([]);
 
+  // WebSocket subscription
+  const { subscribeToDevice } = useSocket();
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
@@ -396,12 +357,14 @@ function DashboardContent() {
     }
   };
 
+  // Subscribe to device updates via WebSocket (connection is managed by SocketProvider)
   useEffect(() => {
-    socketService.connect();
+    const unsubscribes: (() => void)[] = [];
+    
     sections.forEach(section => {
       section.widgets.forEach(widget => {
         if (widget.entityId) {
-          socketService.subscribeToDevice(widget.entityId, (device: any) => {
+          const unsubscribe = subscribeToDevice(widget.entityId, (device: any) => {
             setSections(prev => prev.map(s => ({
               ...s,
               widgets: s.widgets.map(w => {
@@ -413,11 +376,15 @@ function DashboardContent() {
               })
             })));
           });
+          unsubscribes.push(unsubscribe);
         }
       });
     });
-    return () => { };
-  }, [sections]);
+    
+    return () => {
+      unsubscribes.forEach(unsub => unsub());
+    };
+  }, [sections, subscribeToDevice]);
 
   const handleWidgetToggle = async (widgetId: string, state: boolean) => {
     const deviceId = widgetId.replace('w-', '');

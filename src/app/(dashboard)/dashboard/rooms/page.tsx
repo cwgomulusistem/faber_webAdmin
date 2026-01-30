@@ -2,16 +2,18 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { LayoutGrid, List, Plus, Thermometer, Droplets, MapPin } from 'lucide-react';
+import { Plus, Thermometer, Droplets, MapPin, Search, Bell } from 'lucide-react';
 import { cn, getActiveHomeId } from '@/lib/utils';
 import api from '@/services/api.service';
+import { ConnectionStatus } from '@/components/common/ConnectionStatus';
+import { useSocket } from '@/hooks/useSocket';
 
 export default function RoomsPage() {
   const router = useRouter();
   const [rooms, setRooms] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-
-  const handleBack = () => router.back();
+  const [searchTerm, setSearchTerm] = useState('');
+  const { isConnected } = useSocket();
 
   useEffect(() => {
     const fetchData = async () => {
@@ -30,7 +32,6 @@ export default function RoomsPage() {
         const enhancedRooms = rawRooms.map((room: any) => ({
           ...room,
           deviceCount: allDevices.filter((d: any) => d.roomId === room.id).length,
-          // Check if any device in the room has temperature capability for "room temp"
           temperature: allDevices.find((d: any) => d.roomId === room.id && d.attributes?.temperature)?.attributes?.temperature
         }));
 
@@ -44,47 +45,70 @@ export default function RoomsPage() {
     fetchData();
   }, []);
 
+  const filteredRooms = rooms.filter(r =>
+    r.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   return (
     <div className="flex flex-col h-full bg-background-light dark:bg-background-dark overflow-hidden">
-      <header className="flex items-center justify-between px-8 py-6 shrink-0 bg-white dark:bg-surface-dark border-b border-slate-200 dark:border-slate-800">
-        <div className="flex items-center gap-4">
-          <button onClick={handleBack} className="md:hidden p-2"><MapPin /></button>
-          <div className="hidden md:flex gap-2 items-center text-sm text-slate-500">
-            <span className="hover:text-primary cursor-pointer" onClick={() => router.push('/dashboard')}>Ana Sayfa</span>
-            <span>/</span>
-            <span className="text-slate-900 dark:text-white font-medium">Odalar</span>
+      {/* Standard Header */}
+      <header className="h-16 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-6 shrink-0 z-10">
+        <div className="flex items-center gap-6">
+          <div className="flex flex-col">
+            <h1 className="text-lg font-bold text-gray-900 dark:text-white">Odalar</h1>
+            <span className="text-xs text-gray-500">Oda Yönetimi</span>
           </div>
         </div>
-        <div className="flex flex-1 justify-end gap-4 items-center">
-          <button onClick={handleBack} className="hidden md:block px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">Geri</button>
+
+        <div className="flex-1 max-w-md mx-8 hidden md:block">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Oda ara..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className={cn(
+                "w-full pl-10 pr-4 py-2 rounded-xl text-sm",
+                "bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700",
+                "focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none",
+                "placeholder-gray-400 text-gray-900 dark:text-white transition-all"
+              )}
+            />
+          </div>
+        </div>
+
+        <div className="flex items-center gap-4">
+          <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-50 dark:bg-gray-800">
+            <span className="text-xs font-medium text-gray-500">Sistem Durumu</span>
+            <ConnectionStatus />
+          </div>
+
+          <button className="relative p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+            <Bell className="w-5 h-5 text-gray-500" />
+            <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
+          </button>
+
+          <button className="flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-xl bg-primary hover:bg-blue-600 text-white px-4 py-2 shadow-sm transition-all active:scale-95 text-sm font-semibold">
+            <Plus size={18} />
+            <span>Oda Ekle</span>
+          </button>
         </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto p-8">
+      <main className="flex-1 overflow-y-auto p-6 md:p-8">
         <div className="max-w-[1200px] mx-auto flex flex-col gap-6">
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-            <div className="flex flex-col gap-1">
-              <h2 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">Odalarım</h2>
-              <p className="text-slate-500 dark:text-slate-400">Oda durumlarını izleyin ve cihazları yönetin.</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <button className="flex items-center justify-center gap-2 rounded-lg h-10 px-4 bg-primary text-white text-sm font-bold shadow-lg shadow-primary/20 hover:bg-blue-600 transition-all active:scale-95">
-                <Plus size={20} />
-                <span>Oda Ekle</span>
-              </button>
-            </div>
-          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {loading ? (
               <p className="text-slate-500">Odalar yükleniyor...</p>
-            ) : rooms.length === 0 ? (
+            ) : filteredRooms.length === 0 ? (
               <div className="col-span-full py-10 text-center bg-slate-50 dark:bg-slate-900 rounded-xl border border-dashed border-slate-300">
                 <p className="text-slate-500 mb-4">Henüz oda eklenmemiş.</p>
                 <button className="text-primary font-bold hover:underline">İlk odanızı oluşturun</button>
               </div>
             ) : (
-              rooms.map((room) => (
+              filteredRooms.map((room) => (
                 <RoomCard key={room.id} room={room} />
               ))
             )}

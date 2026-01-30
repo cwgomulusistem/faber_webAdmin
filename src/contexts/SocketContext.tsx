@@ -19,6 +19,7 @@ interface TelemetryData {
 interface SocketContextType {
   // Connection state
   isConnected: boolean;
+  isInitializing: boolean; // True during initial connection attempt
   
   // Device subscriptions
   subscribeToDevice: (deviceId: string, callback: DeviceUpdateCallback) => () => void;
@@ -38,6 +39,7 @@ interface SocketContextType {
 
 const SocketContext = createContext<SocketContextType>({
   isConnected: false,
+  isInitializing: true,
   subscribeToDevice: () => () => {},
   joinHome: () => {},
   leaveHome: () => {},
@@ -57,24 +59,38 @@ export function useSocket(): SocketContextType {
 
 export function SocketProvider({ children }: { children: React.ReactNode }) {
   const [isConnected, setIsConnected] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true);
   const [currentHomeId, setCurrentHomeId] = useState<string | null>(null);
   const { isAuthenticated } = useAuth();
 
   // Connect/disconnect based on auth state
   useEffect(() => {
     if (isAuthenticated) {
+      setIsInitializing(true);
       socketService.connect();
       
       // Subscribe to connection status
-      const unsubscribe = socketService.onConnectionChange(setIsConnected);
+      const unsubscribe = socketService.onConnectionChange((connected) => {
+        setIsConnected(connected);
+        if (connected) {
+          setIsInitializing(false);
+        }
+      });
+
+      // Grace period: After 3 seconds, stop showing "initializing" state
+      const initTimeout = setTimeout(() => {
+        setIsInitializing(false);
+      }, 3000);
       
       return () => {
         unsubscribe();
+        clearTimeout(initTimeout);
         socketService.disconnect();
       };
     } else {
       socketService.disconnect();
       setIsConnected(false);
+      setIsInitializing(false);
       setCurrentHomeId(null);
     }
   }, [isAuthenticated]);
@@ -115,6 +131,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo(() => ({
     isConnected,
+    isInitializing,
     subscribeToDevice,
     joinHome,
     leaveHome,
@@ -122,7 +139,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     onDeviceTelemetry,
     onAllTelemetry,
     onDashboardUpdate,
-  }), [isConnected, subscribeToDevice, joinHome, leaveHome, currentHomeId, onDeviceTelemetry, onAllTelemetry, onDashboardUpdate]);
+  }), [isConnected, isInitializing, subscribeToDevice, joinHome, leaveHome, currentHomeId, onDeviceTelemetry, onAllTelemetry, onDashboardUpdate]);
 
   return (
     <SocketContext.Provider value={value}>

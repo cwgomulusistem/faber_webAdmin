@@ -2,10 +2,12 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Home, MapPin, Trash2, Edit2, Check, X } from 'lucide-react';
+import { Plus, Home, MapPin, Trash2, Edit2, Check, X, Search, Bell } from 'lucide-react';
 import { cn, setActiveHomeId } from '@/lib/utils';
 import api from '@/services/api.service';
 import { motion, AnimatePresence } from 'framer-motion';
+import { ConnectionStatus } from '@/components/common/ConnectionStatus';
+import { useSocket } from '@/hooks/useSocket';
 
 interface HomeData {
     id: string;
@@ -21,6 +23,8 @@ export default function HomesPage() {
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [newHomeName, setNewHomeName] = useState('');
     const [newHomeAddress, setNewHomeAddress] = useState('');
+    const [searchTerm, setSearchTerm] = useState('');
+    const { isConnected } = useSocket();
 
     const fetchHomes = async () => {
         try {
@@ -62,45 +66,75 @@ export default function HomesPage() {
         }
     };
 
+    const filteredHomes = homes.filter(h =>
+        h.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (h.address || '').toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
     return (
         <div className="flex flex-col h-full bg-background-light dark:bg-background-dark overflow-hidden">
-            <header className="flex items-center justify-between px-8 py-6 shrink-0 bg-white dark:bg-surface-dark border-b border-slate-200 dark:border-slate-800">
-                <div className="flex items-center gap-4">
-                    <div className="hidden md:flex gap-2 items-center text-sm text-slate-500">
-                        <span className="hover:text-primary cursor-pointer" onClick={() => router.push('/dashboard')}>Ana Sayfa</span>
-                        <span>/</span>
-                        <span className="text-slate-900 dark:text-white font-medium">Evlerim</span>
+            {/* Standard Header */}
+            <header className="h-16 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-6 shrink-0 z-10">
+                <div className="flex items-center gap-6">
+                    <div className="flex flex-col">
+                        <h1 className="text-lg font-bold text-gray-900 dark:text-white">Evlerim</h1>
+                        <span className="text-xs text-gray-500">Ev Yönetimi</span>
                     </div>
+                </div>
+
+                <div className="flex-1 max-w-md mx-8 hidden md:block">
+                    <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <input
+                            type="text"
+                            placeholder="Ev ara..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className={cn(
+                                "w-full pl-10 pr-4 py-2 rounded-xl text-sm",
+                                "bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700",
+                                "focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none",
+                                "placeholder-gray-400 text-gray-900 dark:text-white transition-all"
+                            )}
+                        />
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-4">
+                    <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-50 dark:bg-gray-800">
+                        <span className="text-xs font-medium text-gray-500">Sistem Durumu</span>
+                        <ConnectionStatus />
+                    </div>
+
+                    <button className="relative p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                        <Bell className="w-5 h-5 text-gray-500" />
+                        <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
+                    </button>
+
+                    <button
+                        onClick={() => setIsAddModalOpen(true)}
+                        className="flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-xl bg-primary hover:bg-blue-600 text-white px-4 py-2 shadow-sm transition-all active:scale-95 text-sm font-semibold"
+                    >
+                        <Plus size={18} />
+                        <span>Yeni Ev</span>
+                    </button>
                 </div>
             </header>
 
-            <main className="flex-1 overflow-y-auto p-8">
+            <main className="flex-1 overflow-y-auto p-6 md:p-8">
                 <div className="max-w-[1200px] mx-auto flex flex-col gap-6">
-                    <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-                        <div className="flex flex-col gap-1">
-                            <h2 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">Ev Yönetimi</h2>
-                            <p className="text-slate-500 dark:text-slate-400">Birden fazla evi yönetin ve yapılandırın.</p>
-                        </div>
-                        <button
-                            onClick={() => setIsAddModalOpen(true)}
-                            className="flex items-center justify-center gap-2 rounded-lg h-10 px-4 bg-primary text-white text-sm font-bold shadow-lg shadow-primary/20 hover:bg-blue-600 transition-all active:scale-95"
-                        >
-                            <Plus size={20} />
-                            <span>Yeni Ev Ekle</span>
-                        </button>
-                    </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {loading ? (
                             <p className="text-slate-500">Yükleniyor...</p>
-                        ) : homes.length === 0 ? (
+                        ) : filteredHomes.length === 0 ? (
                             <div className="col-span-full py-20 text-center bg-slate-50 dark:bg-slate-900 rounded-xl border border-dashed border-slate-300">
                                 <Home className="w-12 h-12 mx-auto text-slate-300 mb-4" />
                                 <p className="text-slate-500 mb-4">Henüz kayıtlı ev yok.</p>
                                 <button onClick={() => setIsAddModalOpen(true)} className="text-primary font-bold hover:underline">Hemen bir tane oluşturun</button>
                             </div>
                         ) : (
-                            homes.map((home) => (
+                            filteredHomes.map((home) => (
                                 <div key={home.id} className="group relative bg-white dark:bg-surface-dark rounded-xl p-6 shadow-sm border border-slate-100 dark:border-slate-800 hover:shadow-md transition-all">
                                     <div className="flex justify-between items-start mb-4">
                                         <div className="w-12 h-12 rounded-full bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center text-blue-600 dark:text-blue-400">
