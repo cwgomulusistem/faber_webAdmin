@@ -68,18 +68,23 @@ export const deviceService = {
   },
   
   /**
-   * Update device name or room assignment
-   * PATCH /api/v1/mobile/devices/:id
+   * Update device room assignment
+   * PUT /api/v1/mobile/devices/:id/room
+   * Note: Name update is not supported yet in backend
    */
   async updateDevice(
     deviceId: string,
     updates: { name?: string; roomId?: string }
   ): Promise<Device> {
-    const response = await api.patch<ApiResponse<Device>>(
-      `/mobile/devices/${deviceId}`,
-      updates
-    );
-    return response.data.data!;
+    // Only room update is supported in backend
+    if (updates.roomId !== undefined) {
+      await api.put(`/mobile/devices/${deviceId}/room`, {
+        roomId: updates.roomId,
+      });
+    }
+    // Name update not supported yet - would need backend endpoint
+    // Return updated device
+    return this.getDevice(deviceId);
   },
   
   /**

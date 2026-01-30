@@ -24,26 +24,10 @@ export const homeService = {
 
   /**
    * Get single home with rooms
-   * GET /api/v1/homes/:id
+   * GET /api/v1/homes/:homeId
    */
   async getHome(homeId: string): Promise<Home> {
-    // Note: Backend might not support /homes/:id details yet, checking admin/handler...
-    // Admin has it. Homes handler has ListMyHomes.
-    // Ideally we iterate local list or fetch specific.
-    // For now try generic GET if supported or reuse list.
-    const response = await api.get<ApiResponse<Home>>(`/admin/homes/${homeId}`); // Fallback to admin or implement details in homes module?
-    // Wait, I didn't implement GetHomeDetails in homes module! I only did ListMyHomes.
-    // I should use ListMyHomes and find? Or implement GetHomeDetails.
-    // User wants "backende göre ayarla". 
-    // I will use /admin/homes/:id for details IF user is admin, else this might fail.
-    // BETTER: Use getHomes and find locally if possible, but getHome fetches rooms too.
-    // Let's assume for now we use /admin/homes/:id but strictly speaking I should have implemented it in homes module.
-    // Check homes/handler.go (Step 906): ListMyHomes, CreateHome, DeleteHome.
-    // MISSING: GetHome (details).
-    // But Mobile App usually gets full sync.
-    // Let's leave getHome pointing to /admin/homes/:id and hope user is admin OR implement it.
-    // Actually, creating a home returns it.
-    // Let's keep /admin/homes/:id for now as I didn't change it in backend.
+    const response = await api.get<ApiResponse<Home>>(`/homes/${homeId}`);
     return response.data.data!;
   },
 
@@ -58,13 +42,9 @@ export const homeService = {
 
   /**
    * Update a home
-   * PATCH /api/v1/mobile/homes/:id -> Not implemented in backend 'homes' module yet!
+   * PATCH /api/v1/homes/:homeId
    */
   async updateHome(homeId: string, payload: UpdateHomePayload): Promise<Home> {
-    // I didn't implement PATCH in homes module. 
-    // I only implemented POST, GET (List), DELETE.
-    // So Update will fail. I should probably implement it or warn.
-    // Let's point to /homes/:id and expect 404/405 until implemented.
     const response = await api.patch<ApiResponse<Home>>(`/homes/${homeId}`, payload);
     return response.data.data!;
   },
@@ -81,49 +61,52 @@ export const homeService = {
 
   /**
    * Get rooms for a home
-   * GET /api/v1/mobile/homes/:homeId/rooms
+   * GET /api/v1/homes/:homeId/rooms
    */
   async getRooms(homeId: string): Promise<Room[]> {
-    const response = await api.get<ApiResponse<Room[]>>(`/mobile/homes/${homeId}/rooms`);
+    const response = await api.get<ApiResponse<Room[]>>(`/homes/${homeId}/rooms`);
     return response.data.data || [];
   },
 
   /**
    * Create a new room
-   * POST /api/v1/mobile/rooms
+   * POST /api/v1/homes/rooms
    */
   async createRoom(payload: CreateRoomPayload): Promise<Room> {
-    const response = await api.post<ApiResponse<Room>>('/mobile/rooms', payload);
+    const response = await api.post<ApiResponse<Room>>('/homes/rooms', payload);
     return response.data.data!;
   },
 
   /**
    * Update a room
-   * PATCH /api/v1/mobile/rooms/:id
+   * PATCH /api/v1/homes/rooms/:roomId
    */
   async updateRoom(roomId: string, payload: UpdateRoomPayload): Promise<Room> {
-    const response = await api.patch<ApiResponse<Room>>(`/mobile/rooms/${roomId}`, payload);
+    const response = await api.patch<ApiResponse<Room>>(`/homes/rooms/${roomId}`, payload);
     return response.data.data!;
   },
 
   /**
    * Delete a room
-   * DELETE /api/v1/mobile/rooms/:id
+   * DELETE /api/v1/homes/rooms/:roomId
    */
   async deleteRoom(roomId: string): Promise<void> {
-    await api.delete(`/mobile/rooms/${roomId}`);
+    await api.delete(`/homes/rooms/${roomId}`);
   },
 
   /**
-   * Reorder rooms
-   * POST /api/v1/mobile/homes/:homeId/rooms/reorder
+   * Reorder rooms (update order field for each room)
+   * Note: Backend doesn't have bulk reorder, update individually
    */
   async reorderRooms(homeId: string, roomIds: string[]): Promise<Room[]> {
-    const response = await api.post<ApiResponse<Room[]>>(
-      `/mobile/homes/${homeId}/rooms/reorder`,
-      { roomIds }
+    // Update each room's order
+    await Promise.all(
+      roomIds.map((roomId, index) => 
+        this.updateRoom(roomId, { order: index })
+      )
     );
-    return response.data.data || [];
+    // Return updated rooms
+    return this.getRooms(homeId);
   },
 
   /**
