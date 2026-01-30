@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '@/services/api.service';
+import { getActiveHomeId } from '@/lib/utils';
 
 interface InviteMemberModalProps {
     open: boolean;
@@ -24,12 +25,12 @@ export function InviteMemberModal({ open, onClose, onSuccess }: InviteMemberModa
         e.preventDefault();
         setLoading(true);
         try {
-            const activeHomeId = localStorage.getItem('faber_active_home_id');
-            if (!activeHomeId) return;
+            const homeId = getActiveHomeId();
+            if (!homeId) return;
 
             // Mapping to backend CreateSubUser input
             await api.post('/users/sub', {
-                homeId: activeHomeId,
+                homeId: homeId,
                 username: payload.username,
                 password: payload.password,
                 fullName: payload.fullName,

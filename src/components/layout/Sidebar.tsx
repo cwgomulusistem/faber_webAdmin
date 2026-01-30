@@ -20,7 +20,7 @@ import {
   Plus
 } from 'lucide-react';
 import { useSocket } from '../../hooks/useSocket';
-import { cn } from '@/lib/utils';
+import { cn, getActiveHomeId, setActiveHomeId } from '@/lib/utils';
 import api from '@/services/api.service';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -60,16 +60,16 @@ export function Sidebar() {
         const homeList = res.data?.data || [];
         setHomes(homeList);
 
-        const currentId = localStorage.getItem('faber_active_home_id');
+        const currentId = getActiveHomeId();
         if (currentId && homeList.length > 0) {
           const current = homeList.find((h: any) => h.id === currentId) || homeList[0];
           setActiveHome(current);
           if (current.id !== currentId) {
-            localStorage.setItem('faber_active_home_id', current.id);
+            setActiveHomeId(current.id);
           }
         } else if (homeList.length > 0) {
           setActiveHome(homeList[0]);
-          localStorage.setItem('faber_active_home_id', homeList[0].id);
+          setActiveHomeId(homeList[0].id);
         }
       } catch (e) {
         console.error("Sidebar home fetch error", e);
@@ -97,7 +97,7 @@ export function Sidebar() {
   }, [activeHome]);
 
   const handleSwitchHome = (home: any) => {
-    localStorage.setItem('faber_active_home_id', home.id);
+    setActiveHomeId(home.id);
     setActiveHome(home);
     setIsHomeMenuOpen(false);
     // Hard reload to ensure all data contexts refresh

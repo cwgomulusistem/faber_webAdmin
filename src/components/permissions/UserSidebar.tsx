@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Search, ChevronRight } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, getActiveHomeId, setActiveHomeId } from '@/lib/utils';
 import api from '@/services/api.service';
 
 const masterUser = {
@@ -22,27 +22,27 @@ export function UserSidebar({ onSelectUser, selectedUserId }: { onSelectUser?: (
         const fetchUsers = async () => {
             try {
                 // Determine Home ID (fallback to first home if not in local storage for MVP)
-                let activeHomeId = localStorage.getItem('faber_active_home_id');
+                let homeId = getActiveHomeId();
 
-                if (!activeHomeId) {
+                if (!homeId) {
                     // Try to fetch homes to get a default
                     try {
                         const homesRes = await api.get('/homes');
                         if (homesRes.data && homesRes.data.length > 0) {
-                            activeHomeId = homesRes.data[0].id;
-                            localStorage.setItem('faber_active_home_id', activeHomeId!);
+                            homeId = homesRes.data[0].id;
+                            setActiveHomeId(homeId!);
                         }
                     } catch (e) {
                         console.warn('Failed to fetch homes for default ID', e);
                     }
                 }
 
-                if (!activeHomeId) {
+                if (!homeId) {
                     setLoading(false);
                     return;
                 }
 
-                const res = await api.get(`/users/sub?homeId=${activeHomeId}`);
+                const res = await api.get(`/users/sub?homeId=${homeId}`);
 
                 const mapped = res.data.subUsers.map((u: any) => ({
                     id: u.id,

@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Search, Home, MoreVertical, Key, Clock, Copy, Share, Trash2 } from 'lucide-react';
 import api from '@/services/api.service';
-import { cn } from '@/lib/utils';
+import { cn, getActiveHomeId } from '@/lib/utils';
 import { InviteMemberModal } from '@/components/members/InviteMemberModal';
 import { MemberCard } from '@/components/members/MemberCard';
 
@@ -16,10 +16,10 @@ export default function MembersPage() {
     const fetchMembers = async () => {
         try {
             setLoading(true);
-            const activeHomeId = localStorage.getItem('faber_active_home_id');
-            if (!activeHomeId) return;
+            const homeId = getActiveHomeId();
+            if (!homeId) return;
 
-            const res = await api.get(`/users/sub?homeId=${activeHomeId}`);
+            const res = await api.get(`/users/sub?homeId=${homeId}`);
             // Backend returns { subUsers: [...], total: ... }
             // Let's assume res.data.subUsers is the array.
             // If wrapping exists: res.data.data.subUsers?

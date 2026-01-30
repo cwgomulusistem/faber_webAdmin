@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { LayoutGrid, List, Plus, Thermometer, Droplets, MapPin } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, getActiveHomeId } from '@/lib/utils';
 import api from '@/services/api.service';
 
 export default function RoomsPage() {
@@ -16,12 +16,12 @@ export default function RoomsPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const activeHomeId = localStorage.getItem('faber_active_home_id');
-        if (!activeHomeId) { setLoading(false); return; }
+        const homeId = getActiveHomeId();
+        if (!homeId) { setLoading(false); return; }
 
         const [roomsRes, devicesRes] = await Promise.all([
-          api.get(`/homes/${activeHomeId}/rooms`),
-          api.get(`/homes/${activeHomeId}/devices`)
+          api.get(`/homes/${homeId}/rooms`),
+          api.get(`/homes/${homeId}/devices`)
         ]);
 
         const rawRooms = roomsRes.data?.data || [];

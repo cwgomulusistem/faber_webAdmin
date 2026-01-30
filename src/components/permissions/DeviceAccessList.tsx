@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { ShieldAlert, Bot, Lightbulb, Lock, Save } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, getActiveHomeId } from '@/lib/utils';
 import api from '@/services/api.service';
 
 interface DeviceAccessListProps {
@@ -31,10 +31,10 @@ export function DeviceAccessList({ userId, user }: DeviceAccessListProps) {
             setLoading(true);
             try {
                 // 1. Get Devices
-                const activeHomeId = localStorage.getItem('faber_active_home_id');
-                if (!activeHomeId) return; // Should handle error
+                const homeId = getActiveHomeId();
+                if (!homeId) return; // Should handle error
 
-                const devicesRes = await api.get(`/homes/${activeHomeId}/devices`);
+                const devicesRes = await api.get(`/homes/${homeId}/devices`);
                 const allDevices = devicesRes.data?.data || [];
 
                 // 2. Get User Permissions (Mocking endpoint or using sub-user object if extended)

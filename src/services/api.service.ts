@@ -123,9 +123,30 @@ api.interceptors.request.use(
     // Add home ID header if available (from localStorage, set by HomeContext)
     if (typeof window !== 'undefined' && config.headers) {
       try {
-        const activeHomeId = window.localStorage.getItem('faber_active_home_id');
-        if (activeHomeId) {
-          config.headers['X-Home-ID'] = activeHomeId;
+        const rawHomeId = window.localStorage.getItem('faber_active_home_id');
+        if (rawHomeId) {
+          let homeId: string = rawHomeId;
+          
+          // Handle both JSON-stringified values (from useLocalStorage hook) 
+          // and plain strings (from direct localStorage.setItem calls)
+          // JSON.stringify("uuid") -> "\"uuid\"" (starts with quote)
+          if (rawHomeId.startsWith('"') && rawHomeId.endsWith('"')) {
+            try {
+              const parsed = JSON.parse(rawHomeId);
+              if (typeof parsed === 'string') {
+                homeId = parsed;
+              } else {
+                homeId = rawHomeId.slice(1, -1);
+              }
+            } catch {
+              // If JSON.parse fails, strip quotes manually
+              homeId = rawHomeId.slice(1, -1);
+            }
+          }
+          
+          if (homeId) {
+            config.headers['X-Home-ID'] = homeId;
+          }
         }
       } catch (error) {
         // localStorage access failed, continue without home ID

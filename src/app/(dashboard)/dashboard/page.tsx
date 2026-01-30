@@ -24,7 +24,7 @@ import {
   Pencil, Check, Plus, Search, Sun, Moon, Home, Bell, User,
   ChevronDown, Settings, LayoutGrid, Wifi, WifiOff, X
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, getActiveHomeId, setActiveHomeId } from '@/lib/utils';
 import { SectionCard } from '@/components/dashboard/SectionCard';
 import { WidgetCard } from '@/components/dashboard/WidgetCard';
 import type { Section, Widget, DashboardConfig } from '@/components/dashboard/types';
@@ -64,87 +64,52 @@ const mapDeviceToWidget = (device: any): Widget => {
   };
 };
 
-/* Unchanged components: HomeSelector, DashboardHeader, SocketStatus, AddSectionDialog */
-// ... (I will keep them as is from previous step, just re-declaring types for context if needed or assuming file replacement)
-// Actually, I must provide the full file. I will copy-paste the previous implementation and add the new Dialog.
+/* Header Components */
 
-/* ... Header Components ... */
-interface HomeSelectorProps {
-  homes: { id: string; name: string }[];
-  activeHome: string;
-  onSelect: (id: string) => void;
-}
-
-function HomeSelector({ homes, activeHome, onSelect }: HomeSelectorProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  const current = homes.find(h => h.id === activeHome);
-
+// Faber Logo Component
+function FaberLogo() {
   return (
-    <div className="relative">
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className={cn(
-          'flex items-center gap-3 px-4 py-2.5 rounded-xl',
-          'bg-white border border-gray-200',
-          'hover:border-gray-300 transition-all',
-          'shadow-sm'
-        )}
-      >
-        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white">
-          <Home size={16} />
+    <div className="flex items-center gap-3">
+      {/* Logo Icon */}
+      <div className="relative">
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 via-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/30 overflow-hidden">
+          {/* Abstract smart home icon */}
+          <svg 
+            width="22" 
+            height="22" 
+            viewBox="0 0 24 24" 
+            fill="none" 
+            className="text-white"
+          >
+            <path 
+              d="M3 9.5L12 4L21 9.5V20C21 20.5523 20.5523 21 20 21H4C3.44772 21 3 20.5523 3 20V9.5Z" 
+              stroke="currentColor" 
+              strokeWidth="2" 
+              strokeLinejoin="round"
+            />
+            <circle cx="12" cy="13" r="3" fill="currentColor" opacity="0.9" />
+            <path 
+              d="M12 10V7M15 13H18M12 16V19M6 13H9" 
+              stroke="currentColor" 
+              strokeWidth="1.5" 
+              strokeLinecap="round"
+              opacity="0.6"
+            />
+          </svg>
         </div>
-        <div className="text-left">
-          <div className="text-sm font-semibold text-gray-900">{current?.name || 'Ev Seç'}</div>
-          <div className="text-xs text-gray-500">Aktif Konum</div>
-        </div>
-        <ChevronDown size={16} className={cn(
-          'text-gray-400 transition-transform',
-          isOpen && 'rotate-180'
-        )} />
-      </button>
-
-      <AnimatePresence>
-        {isOpen && (
-          <>
-            <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className={cn(
-                'absolute top-full left-0 mt-2 w-full z-50',
-                'bg-white rounded-xl shadow-lg border border-gray-100',
-                'overflow-hidden'
-              )}
-            >
-              {homes.map(home => (
-                <button
-                  key={home.id}
-                  onClick={() => { onSelect(home.id); setIsOpen(false); }}
-                  className={cn(
-                    'w-full flex items-center gap-3 px-4 py-3',
-                    'hover:bg-gray-50 transition-colors',
-                    home.id === activeHome && 'bg-blue-50'
-                  )}
-                >
-                  <div className={cn(
-                    'w-8 h-8 rounded-lg flex items-center justify-center',
-                    home.id === activeHome
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-gray-100 text-gray-500'
-                  )}>
-                    <Home size={16} />
-                  </div>
-                  <span className="font-medium text-gray-900">{home.name}</span>
-                  {home.id === activeHome && (
-                    <Check size={16} className="ml-auto text-blue-500" />
-                  )}
-                </button>
-              ))}
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+        {/* Animated pulse ring */}
+        <div className="absolute inset-0 rounded-xl bg-blue-500/20 animate-ping" style={{ animationDuration: '3s' }} />
+      </div>
+      
+      {/* Brand Text */}
+      <div className="flex flex-col">
+        <span className="text-xl font-black tracking-tight bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-600 bg-clip-text text-transparent">
+          FABER
+        </span>
+        <span className="text-[9px] font-semibold tracking-[0.25em] text-gray-400 uppercase">
+          Smart Home
+        </span>
+      </div>
     </div>
   );
 }
@@ -153,24 +118,25 @@ interface DashboardHeaderProps {
   editMode: boolean;
   onToggleEditMode: () => void;
   onAddSection: () => void;
-  homes: any[];
-  activeHomeId: string;
-  onHomeChange: (id: string) => void;
 }
 
-function DashboardHeader({ editMode, onToggleEditMode, onAddSection, homes, activeHomeId, onHomeChange }: DashboardHeaderProps) {
+function DashboardHeader({ editMode, onToggleEditMode, onAddSection }: DashboardHeaderProps) {
   return (
     <header className="h-20 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-8 shrink-0 z-20 sticky top-0">
-      <div className="flex items-center gap-6">
-        <div className="flex flex-col">
-          <h1 className="text-xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
-          <div className="flex items-center gap-2 text-xs text-gray-500">
-            <span className="hover:text-primary cursor-pointer">Ana Sayfa</span>
+      <div className="flex items-center gap-8">
+        {/* Faber Logo */}
+        <FaberLogo />
+        
+        {/* Page Title with separator */}
+        <div className="hidden sm:flex items-center gap-4">
+          <div className="w-px h-8 bg-gray-200 dark:bg-gray-700" />
+          <div className="flex flex-col">
+            <h1 className="text-lg font-bold text-gray-900 dark:text-white">Dashboard</h1>
+            <div className="flex items-center gap-2 text-xs text-gray-500">
+              <span className="hover:text-primary cursor-pointer">Ana Sayfa</span>
+            </div>
           </div>
         </div>
-        {homes.length > 0 && (
-          <HomeSelector homes={homes} activeHome={activeHomeId} onSelect={onHomeChange} />
-        )}
       </div>
 
       <div className="flex-1 max-w-2xl px-12">
@@ -343,7 +309,7 @@ function DashboardContent() {
 
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
   const [homes, setHomes] = useState<any[]>([]);
-  const [activeHomeId, setActiveHomeId] = useState<string>('');
+  const [activeHomeId, setActiveHomeIdState] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
 
   // Store all devices to allow reassignment
@@ -366,16 +332,16 @@ function DashboardContent() {
           return;
         }
 
-        let currentHomeId = localStorage.getItem('faber_active_home_id');
+        let currentHomeId = getActiveHomeId();
         const homeExists = fetchedHomes.find((h: any) => h.id === currentHomeId);
         if (!currentHomeId || !homeExists) {
           const defaultHomeId = String(fetchedHomes[0].id);
           currentHomeId = defaultHomeId;
-          localStorage.setItem('faber_active_home_id', defaultHomeId);
+          setActiveHomeId(defaultHomeId);
         }
 
         if (currentHomeId) {
-          setActiveHomeId(currentHomeId);
+          setActiveHomeIdState(currentHomeId);
           await loadDashboardData(currentHomeId);
         }
 
@@ -498,8 +464,8 @@ function DashboardContent() {
   };
 
   const handleHomeChange = (id: string) => {
+    setActiveHomeIdState(id);
     setActiveHomeId(id);
-    localStorage.setItem('faber_active_home_id', id);
     loadDashboardData(id);
   };
 
@@ -571,7 +537,7 @@ function DashboardContent() {
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-background-light dark:bg-background-dark">
-      <DashboardHeader editMode={editMode} onToggleEditMode={() => setEditMode(!editMode)} onAddSection={() => setAddSectionOpen(true)} homes={homes} activeHomeId={activeHomeId} onHomeChange={handleHomeChange} />
+      <DashboardHeader editMode={editMode} onToggleEditMode={() => setEditMode(!editMode)} onAddSection={() => setAddSectionOpen(true)} />
       <AnimatePresence>
         {editMode && (
           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="bg-blue-50 dark:bg-blue-900/20 border-b border-blue-100 dark:border-blue-900/30 overflow-hidden shrink-0">

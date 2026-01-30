@@ -3,7 +3,7 @@
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import { Search, Plus, ListFilter, LayoutGrid, MoreVertical, Lightbulb, Lock, Thermometer, Router, BatteryWarning } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, getActiveHomeId } from '@/lib/utils';
 import api from '@/services/api.service';
 
 export default function DevicesPage() {
@@ -20,15 +20,15 @@ export default function DevicesPage() {
   React.useEffect(() => {
     const fetchDevices = async () => {
       try {
-        const activeHomeId = localStorage.getItem('faber_active_home_id');
-        if (!activeHomeId) {
+        const homeId = getActiveHomeId();
+        if (!homeId) {
           // If no active home, maybe fetch homes first? 
           // For now, fail gracefully.
           setLoading(false);
           return;
         }
 
-        const res = await api.get(`/homes/${activeHomeId}/devices`);
+        const res = await api.get(`/homes/${homeId}/devices`);
         setDevices(res.data?.data || []);
       } catch (err) {
         console.error("Failed to fetch devices", err);

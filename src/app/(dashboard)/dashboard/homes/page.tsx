@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, Home, MapPin, Trash2, Edit2, Check, X } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, setActiveHomeId } from '@/lib/utils';
 import api from '@/services/api.service';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -119,7 +119,7 @@ export default function HomesPage() {
                                     </div>
                                     <button
                                         onClick={() => {
-                                            localStorage.setItem('faber_active_home_id', home.id);
+                                            setActiveHomeId(home.id);
                                             router.push('/dashboard');
                                         }}
                                         className="w-full py-2.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-medium hover:bg-primary hover:text-white transition-all"
