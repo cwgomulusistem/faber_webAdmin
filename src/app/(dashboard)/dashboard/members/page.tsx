@@ -8,6 +8,9 @@ import { InviteMemberModal } from '@/components/members/InviteMemberModal';
 import { MemberCard } from '@/components/members/MemberCard';
 import { ConnectionStatus } from '@/components/common/ConnectionStatus';
 import { useSocket } from '@/hooks/useSocket';
+import { useAuth } from '@/contexts/AuthContext';
+import { useRouter } from 'next/navigation';
+import { UserRole } from '@/types/auth.types';
 
 interface HomeInfo {
     id: string;
@@ -36,11 +39,22 @@ export default function MembersPage() {
     const [homeFilter, setHomeFilter] = useState<string>('all'); // Filter by home
     const [searchTerm, setSearchTerm] = useState('');
     const { isConnected } = useSocket();
+    const { user, isLoading: authLoading } = useAuth();
+    const router = useRouter();
+
+    // Check if user is master (can invite)
+    const isMaster = user && 'role' in user && user.role === UserRole.MASTER;
+
+    useEffect(() => {
+        if (!authLoading && !isMaster) {
+            router.push('/dashboard');
+        }
+    }, [isMaster, authLoading, router]);
 
     const fetchAllMembers = async () => {
         try {
             setLoading(true);
-            
+
             // 1. Fetch all homes
             const homesRes = await api.get('/homes');
             const homesList: HomeInfo[] = homesRes.data.data || homesRes.data || [];
@@ -61,7 +75,7 @@ export default function MembersPage() {
 
                     for (const u of list) {
                         const existing = memberMap.get(u.id);
-                        
+
                         if (existing) {
                             // User already exists, add this home to their list
                             if (!existing.homes.find(h => h.id === home.id)) {
@@ -106,7 +120,7 @@ export default function MembersPage() {
         // Search filter
         const matchesSearch = member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
             (member.email && member.email.toLowerCase().includes(searchTerm.toLowerCase()));
-        
+
         // Role filter
         let matchesRole = true;
         if (filter === 'Adminler') matchesRole = member.type === 'master';
@@ -165,13 +179,15 @@ export default function MembersPage() {
                         <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
                     </button>
 
-                    <button
-                        onClick={() => setIsInviteModalOpen(true)}
-                        className="flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-xl bg-primary hover:bg-blue-600 text-white px-4 py-2 shadow-sm transition-all active:scale-95 text-sm font-semibold"
-                    >
-                        <Plus size={18} />
-                        <span>Üye Davet Et</span>
-                    </button>
+                    {isMaster && (
+                        <button
+                            onClick={() => setIsInviteModalOpen(true)}
+                            className="flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-xl bg-primary hover:bg-blue-600 text-white px-4 py-2 shadow-sm transition-all active:scale-95 text-sm font-semibold"
+                        >
+                            <Plus size={18} />
+                            <span>Üye Davet Et</span>
+                        </button>
+                    )}
                 </div>
             </header>
 
@@ -235,13 +251,15 @@ export default function MembersPage() {
                             <p className="text-gray-500 text-center max-w-md">
                                 Evlerinize üye davet ederek başlayın.
                             </p>
-                            <button
-                                onClick={() => setIsInviteModalOpen(true)}
-                                className="mt-4 flex items-center gap-2 bg-primary hover:bg-blue-600 text-white px-6 py-3 rounded-xl font-semibold transition-all"
-                            >
-                                <Plus size={20} />
-                                <span>İlk Üyeyi Davet Et</span>
-                            </button>
+                            {isMaster && (
+                                <button
+                                    onClick={() => setIsInviteModalOpen(true)}
+                                    className="mt-4 flex items-center gap-2 bg-primary hover:bg-blue-600 text-white px-6 py-3 rounded-xl font-semibold transition-all"
+                                >
+                                    <Plus size={20} />
+                                    <span>İlk Üyeyi Davet Et</span>
+                                </button>
+                            )}
                         </div>
                     ) : (
                         <>
@@ -260,8 +278,8 @@ export default function MembersPage() {
                                     ))}
                                     {residents.length === 0 && (
                                         <div className="col-span-full py-10 text-center text-slate-500">
-                                            {filter !== 'Tümü' || homeFilter !== 'all' 
-                                                ? 'Seçilen filtrelere uygun üye bulunamadı.' 
+                                            {filter !== 'Tümü' || homeFilter !== 'all'
+                                                ? 'Seçilen filtrelere uygun üye bulunamadı.'
                                                 : 'Henüz sakin yok. Birini davet edin!'}
                                         </div>
                                     )}

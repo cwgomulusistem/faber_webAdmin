@@ -1,12 +1,19 @@
 // Auth Types
 // Type definitions for authentication system
 
+export enum UserRole {
+  MASTER = 'master',
+  SUB = 'sub',
+  ADMIN = 'admin',
+}
+
 export interface User {
   id: string;
   email: string;
   fullName?: string;
   phone?: string;
   avatar?: string;
+  role: UserRole;
   provider: AuthProvider;
   language: string;
   timezone: string;
