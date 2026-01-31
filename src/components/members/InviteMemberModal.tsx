@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '@/services/api.service';
-import { getActiveHomeId } from '@/lib/utils';
+import { useHome } from '@/contexts/HomeContext';
 
 interface InviteMemberModalProps {
     open: boolean;
@@ -13,6 +13,8 @@ interface InviteMemberModalProps {
 }
 
 export function InviteMemberModal({ open, onClose, onSuccess }: InviteMemberModalProps) {
+    const { homes } = useHome();
+    const [selectedHomeIds, setSelectedHomeIds] = useState<string[]>([]);
     const [payload, setPayload] = useState({
         fullName: '',
         username: '',
@@ -21,12 +23,30 @@ export function InviteMemberModal({ open, onClose, onSuccess }: InviteMemberModa
     });
     const [loading, setLoading] = useState(false);
 
+    // Set default home when homes are loaded
+    useEffect(() => {
+        if (homes.length > 0 && selectedHomeIds.length === 0) {
+            setSelectedHomeIds([homes[0].id]);
+        }
+    }, [homes, selectedHomeIds.length]);
+
+    const toggleHome = (homeId: string) => {
+        setSelectedHomeIds(prev =>
+            prev.includes(homeId)
+                ? prev.filter(id => id !== homeId)
+                : [...prev, homeId]
+        );
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
         try {
-            const homeId = getActiveHomeId();
-            if (!homeId) return;
+            if (selectedHomeIds.length === 0) {
+                alert("Please select at least one home");
+                setLoading(false);
+                return;
+            }
 
             // Manual Validation
             if (payload.password.length < 6) {
@@ -37,17 +57,18 @@ export function InviteMemberModal({ open, onClose, onSuccess }: InviteMemberModa
 
             // Mapping to backend CreateSubUser input
             await api.post('/users/sub', {
-                homeId: homeId,
+                homeIds: selectedHomeIds, // Multiple homes
                 username: payload.username,
                 password: payload.password,
                 fullName: payload.fullName,
-                defaultPermission: 'CONTROL', // Default
-                role: payload.role // Backend might ignore this if not mapped, but intended logic is here
+                defaultPermission: 'CONTROL',
+                role: payload.role
             });
 
             onSuccess();
             onClose();
             setPayload({ fullName: '', username: '', password: '', role: 'member' });
+            setSelectedHomeIds([]);
         } catch (err: any) {
             console.error("Invite failed", err);
             const message = err.response?.data?.error || err.message || "Failed to invite member";
@@ -73,6 +94,24 @@ export function InviteMemberModal({ open, onClose, onSuccess }: InviteMemberModa
                 </div>
 
                 <form onSubmit={handleSubmit} className="p-6 flex flex-col gap-4">
+                    {/* Home Selection - Multi-select */}
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Assign to Home(s)</label>
+                        <div className="space-y-2 max-h-32 overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-lg p-3">
+                            {homes.map(home => (
+                                <label key={home.id} className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={selectedHomeIds.includes(home.id)}
+                                        onChange={() => toggleHome(home.id)}
+                                        className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary"
+                                    />
+                                    <span className="text-sm text-slate-700 dark:text-slate-300">{home.name}</span>
+                                </label>
+                            ))}
+                        </div>
+                        <p className="text-xs text-slate-500 mt-1">Select one or more homes</p>
+                    </div>
                     <div>
                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Full Name</label>
                         <input
