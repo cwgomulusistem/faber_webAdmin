@@ -21,6 +21,8 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  // Allow 304 (Not Modified) to be consumed as valid response
+  validateStatus: (status) => status >= 200 && status < 400,
 });
 
 // Generate or retrieve persistent Client ID for device binding
@@ -28,7 +30,7 @@ const api = axios.create({
 // It binds the JWT token to this specific device - stolen tokens won't work on other devices
 const getOrCreateClientId = (): string => {
   if (typeof window === 'undefined') return '';
-  
+
   let clientId = localStorage.getItem(CLIENT_ID_KEY);
   if (!clientId) {
     clientId = uuidv4();
@@ -43,19 +45,19 @@ export const tokenManager = {
   getRefreshToken: (): string | undefined => Cookies.get(REFRESH_TOKEN_KEY),
   getClientId: (): string => getOrCreateClientId(),
   getClientType: (): typeof CLIENT_TYPE => CLIENT_TYPE,
-  
+
   setTokens: (token: string, refreshToken: string): void => {
     // Token expires in 15 minutes, refresh in 7 days
-    Cookies.set(TOKEN_KEY, token, { expires: 1/96, secure: true, sameSite: 'strict' });
+    Cookies.set(TOKEN_KEY, token, { expires: 1 / 96, secure: true, sameSite: 'strict' });
     Cookies.set(REFRESH_TOKEN_KEY, refreshToken, { expires: 7, secure: true, sameSite: 'strict' });
   },
-  
+
   clearTokens: (): void => {
     Cookies.remove(TOKEN_KEY);
     Cookies.remove(REFRESH_TOKEN_KEY);
     // Note: We do NOT clear CLIENT_ID_KEY - it's device-bound, not session-bound
   },
-  
+
   isAuthenticated: (): boolean => !!Cookies.get(TOKEN_KEY),
 };
 
@@ -76,17 +78,17 @@ const onTokenRefreshed = (token: string): void => {
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const token = tokenManager.getToken();
-    
+
     // Prevent overwriting existing Authorization header (e.g. set by Global Admin service)
     if (token && config.headers && !config.headers.Authorization) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-    
+
     // CRITICAL: Add X-Client-ID header for device binding (REQUIRED for authenticated requests)
     // This binds the token to this specific device - prevents token replay attacks
     if (config.headers) {
       let clientId = tokenManager.getClientId();
-      
+
       // Split Brain Detection:
       // If we have a token (Authenticated) but NO clientId (Device Binding lost),
       // we MUST NOT generate a new random clientId. The backend will reject the token
@@ -115,18 +117,18 @@ api.interceptors.request.use(
           console.error('[API] localStorage yazılamadı:', e);
         }
       }
-      
+
       // Always set the header - this is mandatory for authenticated requests
       config.headers['X-Client-ID'] = clientId;
     }
-    
+
     // Add home ID header if available (from localStorage, set by HomeContext)
     if (typeof window !== 'undefined' && config.headers) {
       try {
         const rawHomeId = window.localStorage.getItem('faber_active_home_id');
         if (rawHomeId) {
           let homeId: string = rawHomeId;
-          
+
           // Handle both JSON-stringified values (from useLocalStorage hook) 
           // and plain strings (from direct localStorage.setItem calls)
           // JSON.stringify("uuid") -> "\"uuid\"" (starts with quote)
@@ -143,7 +145,7 @@ api.interceptors.request.use(
               homeId = rawHomeId.slice(1, -1);
             }
           }
-          
+
           if (homeId) {
             config.headers['X-Home-ID'] = homeId;
           }
@@ -153,7 +155,7 @@ api.interceptors.request.use(
         // Some endpoints don't require home ID
       }
     }
-    
+
     return config;
   },
   (error) => Promise.reject(error)
@@ -164,23 +166,23 @@ api.interceptors.response.use(
   (response) => response,
   async (error: AxiosError<ApiResponse>) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
-    
+
     // Extract error message from response
-    const errorMessage = (error.response?.data as any)?.error 
-      || (error.response?.data as any)?.message 
-      || error.message 
+    const errorMessage = (error.response?.data as any)?.error
+      || (error.response?.data as any)?.message
+      || error.message
       || 'Bir hata oluştu';
-    
+
     // Create a more informative error
     const enhancedError = new Error(errorMessage);
     (enhancedError as any).response = error.response;
     (enhancedError as any).status = error.response?.status;
-    
+
     // Not a 401 or already retried
     if (error.response?.status !== 401 || originalRequest._retry) {
       return Promise.reject(enhancedError);
     }
-    
+
     // No refresh token available
     const refreshToken = tokenManager.getRefreshToken();
     if (!refreshToken) {
@@ -190,7 +192,7 @@ api.interceptors.response.use(
       }
       return Promise.reject(error);
     }
-    
+
     // Already refreshing, queue this request
     if (isRefreshing) {
       return new Promise((resolve) => {
@@ -202,39 +204,39 @@ api.interceptors.response.use(
         });
       });
     }
-    
+
     // Start refresh process
     originalRequest._retry = true;
     isRefreshing = true;
-    
+
     try {
       // Include device binding info in refresh request
       const clientId = tokenManager.getClientId();
       const clientType = tokenManager.getClientType();
-      
+
       // Backend returns wrapped ApiResponse
       const response = await axios.post<ApiResponse<TokenResponse>>(
         `${env.API_URL}/api/v1/auth/refresh`,
-        { 
+        {
           refreshToken: refreshToken,
           clientId: clientId,
           clientType: clientType
         },
         { headers: { 'Content-Type': 'application/json' } }
       );
-      
+
       const { accessToken, refreshToken: newRefreshToken } = response.data.data!;
       tokenManager.setTokens(accessToken, newRefreshToken);
-      
+
       // Notify waiting requests
       onTokenRefreshed(accessToken);
-      
+
       // Retry original request
       if (originalRequest.headers) {
         originalRequest.headers.Authorization = `Bearer ${accessToken}`;
       }
       return api(originalRequest);
-      
+
     } catch (refreshError) {
       // Refresh failed, logout user
       tokenManager.clearTokens();
@@ -242,7 +244,7 @@ api.interceptors.response.use(
         window.location.href = '/login';
       }
       return Promise.reject(refreshError);
-      
+
     } finally {
       isRefreshing = false;
     }

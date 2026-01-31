@@ -78,6 +78,14 @@ export interface TokenResponse {
   expiresIn: number;
   tokenType?: 'Bearer';
   user?: User;
+  homes?: HomeBasicInfo[]; // User's accessible homes from login
+}
+
+// Home info returned in login response
+export interface HomeBasicInfo {
+  id: string;
+  name: string;
+  role: string; // OWNER | MEMBER | ADMIN | GUEST
 }
 
 export interface AuthState {

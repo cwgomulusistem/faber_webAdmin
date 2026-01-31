@@ -28,6 +28,13 @@ export function InviteMemberModal({ open, onClose, onSuccess }: InviteMemberModa
             const homeId = getActiveHomeId();
             if (!homeId) return;
 
+            // Manual Validation
+            if (payload.password.length < 6) {
+                alert("Password must be at least 6 characters long.");
+                setLoading(false);
+                return;
+            }
+
             // Mapping to backend CreateSubUser input
             await api.post('/users/sub', {
                 homeId: homeId,
@@ -41,9 +48,10 @@ export function InviteMemberModal({ open, onClose, onSuccess }: InviteMemberModa
             onSuccess();
             onClose();
             setPayload({ fullName: '', username: '', password: '', role: 'member' });
-        } catch (err) {
+        } catch (err: any) {
             console.error("Invite failed", err);
-            alert("Failed to invite member. Username might be taken.");
+            const message = err.response?.data?.error || err.message || "Failed to invite member";
+            alert(message);
         } finally {
             setLoading(false);
         }
@@ -93,9 +101,14 @@ export function InviteMemberModal({ open, onClose, onSuccess }: InviteMemberModa
                             value={payload.password}
                             onChange={e => setPayload({ ...payload, password: e.target.value })}
                             className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-transparent focus:ring-2 focus:ring-primary outline-none"
-                            placeholder="******"
+                            minLength={6}
                         />
+                        <p className="text-xs text-slate-500 mt-1">Min. 6 characters</p>
                     </div>
+
+                    {/* Error Message Display */}
+                    {/* Note: In a real app we'd use a state for this */}
+                    <div id="form-error" className="text-red-500 text-sm hidden"></div>
 
                     <div className="pt-4 flex justify-end gap-3">
                         <button type="button" onClick={onClose} className="px-5 py-2.5 rounded-xl font-medium text-slate-600 hover:bg-slate-100 transition-colors">Cancel</button>

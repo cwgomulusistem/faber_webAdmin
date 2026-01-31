@@ -7,11 +7,11 @@
 import env from '../config/env';
 import { tokenManager } from './api.service';
 import type { Device, DeviceAttributes } from '../types/device.types';
-import type { 
-  DeviceEntity, 
+import type {
+  DeviceEntity,
   EntityUpdatePayload,
   DeviceDiscoveredPayload,
-  DeviceOfflinePayload 
+  DeviceOfflinePayload
 } from '../types/entity.types';
 
 // Message types (must match backend v3.0)
@@ -75,33 +75,33 @@ class WebSocketService {
   private telemetryListeners: Map<string, Set<TelemetryCallback>> = new Map(); // Per-device telemetry
   private globalTelemetryListeners: Set<TelemetryCallback> = new Set(); // All telemetry
   private connectionListeners: Set<ConnectionCallback> = new Set();
-  
+
   // v3.0: Entity-based listeners
   private entityUpdateListeners: Map<string, Set<EntityUpdateCallback>> = new Map(); // Per-entity
   private globalEntityUpdateListeners: Set<EntityUpdateCallback> = new Set(); // All entities
   private discoveryListeners: Set<DeviceDiscoveredCallback> = new Set();
   private offlineListeners: Set<DeviceOfflineCallback> = new Set();
   private onlineListeners: Set<DeviceOnlineCallback> = new Set();
-  
+
   // Reconnection state
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 10;
   private baseReconnectDelay = 1000; // 1 second
   private maxReconnectDelay = 30000; // 30 seconds
   private reconnectTimeout: NodeJS.Timeout | null = null;
-  
+
   // Server shutdown handling (v2.0: Graceful shutdown support)
   private isServerShutdown = false;
   private serverSuggestedDelay = 5000;
-  
+
   // Message queue for offline messages
   private messageQueue: WebSocketMessage[] = [];
   private isConnecting = false;
-  
+
   // Pending requests (for request-response pattern)
   private pendingRequests: Map<string, { resolve: (value: unknown) => void; reject: (error: Error) => void }> = new Map();
   private requestId = 0;
-  
+
   // State restoration - track active subscriptions for auto-rejoin on reconnect (v2.0)
   private currentHomeId: string | null = null;
   private subscribedDevices: Set<string> = new Set();
@@ -116,19 +116,19 @@ class WebSocketService {
   connect(): void {
     if (this.ws?.readyState === WebSocket.OPEN || this.isConnecting) return;
     if (!env.ENABLE_SOCKET) return;
-    
+
     const token = tokenManager.getToken();
     if (!token) {
       console.warn('WebSocket: No auth token available');
       return;
     }
-    
+
     this.isConnecting = true;
     this.authToken = token;
-    
+
     // Build WebSocket URL (NO token in URL - security)
     const wsUrl = this.buildWebSocketUrl();
-    
+
     try {
       this.ws = new WebSocket(wsUrl);
       this.setupEventHandlers();
@@ -138,7 +138,7 @@ class WebSocketService {
       this.scheduleReconnect();
     }
   }
-  
+
   /**
    * Build WebSocket URL from API URL
    * v3.1: Token NOT included in URL (sent via auth message)
@@ -150,7 +150,7 @@ class WebSocketService {
     const wsHost = baseUrl.replace(/^https?:\/\//, '');
     return `${wsProtocol}://${wsHost}/ws`;
   }
-  
+
   /**
    * Disconnect WebSocket
    */
@@ -159,164 +159,177 @@ class WebSocketService {
       clearTimeout(this.reconnectTimeout);
       this.reconnectTimeout = null;
     }
-    
+
     if (this.ws) {
       this.ws.close(1000, 'Client disconnect');
       this.ws = null;
     }
-    
+
     this.isConnecting = false;
     this.reconnectAttempts = 0;
     this.messageQueue = [];
     this.deviceListeners.clear();
     this.connectionListeners.clear();
     this.messageListeners.clear();
-    
+
     // Clear state restoration tracking (full disconnect, not reconnect)
     this.currentHomeId = null;
     this.subscribedDevices.clear();
   }
-  
+
   /**
    * Setup WebSocket event handlers
    */
   private setupEventHandlers(): void {
     if (!this.ws) return;
-    
+
     this.ws.onopen = () => {
       console.log('WebSocket: Connected, sending auth...');
-      
+
       // v3.1: Send auth message with token (NOT in URL for security)
-      if (this.authToken) {
-        this.ws?.send(JSON.stringify({
+      // Fix: Check readyState to avoid "Still in CONNECTING state" error due to race conditions
+      if (this.authToken && this.ws?.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify({
           type: 'auth',
           payload: { token: this.authToken }
         }));
       }
-      
+
       this.isConnecting = false;
       this.reconnectAttempts = 0;
       this.isServerShutdown = false;
       this.notifyConnectionListeners(true);
-      
+
       // State restoration: Auto-rejoin home room if we were in one before disconnect
       if (this.currentHomeId) {
         console.log('WebSocket: Restoring home subscription:', this.currentHomeId);
         this.send({ type: 'join:home', payload: { homeId: this.currentHomeId } });
       }
-      
+
       // State restoration: Re-subscribe to devices we were watching
       for (const deviceId of this.subscribedDevices) {
         console.log('WebSocket: Restoring device subscription:', deviceId);
         this.send({ type: 'device:subscribe', payload: { deviceId } });
       }
-      
+
       // Send queued messages
       this.flushMessageQueue();
     };
-    
+
     this.ws.onclose = (event) => {
       console.log('WebSocket: Disconnected -', event.code, event.reason);
       this.isConnecting = false;
       this.notifyConnectionListeners(false);
-      
+
       // Don't reconnect if manually disconnected
       if (event.code !== 1000) {
         this.scheduleReconnect();
       }
     };
-    
+
     this.ws.onerror = (error) => {
       console.error('WebSocket: Error -', error);
       this.isConnecting = false;
     };
-    
+
     this.ws.onmessage = (event) => {
       this.handleMessage(event);
     };
   }
-  
+
   /**
    * Handle incoming WebSocket messages
    */
   private handleMessage(event: MessageEvent): void {
     try {
-      const message: WebSocketMessage = JSON.parse(event.data);
-      
-      // Handle server shutdown gracefully
-      if (message.type === 'SHUTDOWN') {
-        const payload = message.payload as ShutdownPayload;
-        console.log('WebSocket: Server restarting, will reconnect in', payload.retry_in, 'seconds');
-        this.isServerShutdown = true;
-        this.serverSuggestedDelay = (payload.retry_in || 5) * 1000;
-        return;
-      }
-      
-      // Handle result messages (for request-response pattern)
-      if (message.type === 'result') {
-        // Results are handled by the emit listeners
-      }
-      
-      // Emit to type-specific listeners
-      this.emit(message.type, message.payload);
-      
-      // Handle device updates specifically
-      if (message.type === 'device_update' || message.type === 'device:update') {
-        const data = message.payload as { deviceId: string; attributes: DeviceAttributes };
-        if (data?.deviceId) {
-          this.notifyDeviceListeners(data.deviceId, data);
+      // Support newline-delimited JSON (backend batching)
+      const messages = (typeof event.data === 'string' ? event.data : '').split('\n');
+
+      for (const rawMessage of messages) {
+        if (!rawMessage.trim()) continue;
+
+        try {
+          const message: WebSocketMessage = JSON.parse(rawMessage);
+
+          // Handle server shutdown gracefully
+          if (message.type === 'SHUTDOWN') {
+            const payload = message.payload as ShutdownPayload;
+            console.log('WebSocket: Server restarting, will reconnect in', payload.retry_in, 'seconds');
+            this.isServerShutdown = true;
+            this.serverSuggestedDelay = (payload.retry_in || 5) * 1000;
+            continue;
+          }
+
+          // Handle result messages (for request-response pattern)
+          if (message.type === 'result') {
+            // Results are handled by the emit listeners
+          }
+
+          // Emit to type-specific listeners
+          this.emit(message.type, message.payload);
+
+          // Handle device updates specifically
+          if (message.type === 'device_update' || message.type === 'device:update') {
+            const data = message.payload as { deviceId: string; attributes: DeviceAttributes };
+            if (data?.deviceId) {
+              this.notifyDeviceListeners(data.deviceId, data);
+            }
+          }
+
+          // Handle real-time telemetry from ESP32 devices
+          // Telemetry is room-based - only received if joined to the device's home
+          if (message.type === 'device_telemetry') {
+            const data = message.payload as TelemetryPayload;
+            if (data?.deviceId) {
+              this.notifyTelemetryListeners(data.deviceId, data);
+            }
+          }
+
+          // v3.0: Handle entity value updates
+          if (message.type === 'entity_update') {
+            const data = message.payload as EntityUpdatePayload;
+            if (data?.entityId) {
+              this.notifyEntityUpdateListeners(data.entityId, data);
+            }
+          }
+
+          // v3.0: Handle device discovery (new device announces capabilities)
+          if (message.type === 'device_discovered') {
+            const data = message.payload as DeviceDiscoveredPayload;
+            if (data?.deviceId && data?.entities) {
+              console.log('WebSocket: Device discovered:', data.deviceId, 'with', data.entities.length, 'entities');
+              this.notifyDiscoveryListeners(data.deviceId, data.entities);
+            }
+          }
+
+          // v3.0: Handle device offline (LWT)
+          if (message.type === 'device_offline') {
+            const data = message.payload as DeviceOfflinePayload;
+            if (data?.deviceId) {
+              console.log('WebSocket: Device went offline:', data.deviceId);
+              this.notifyOfflineListeners(data.deviceId);
+            }
+          }
+
+          // v3.0: Handle device online
+          if (message.type === 'device_online') {
+            const data = message.payload as { deviceId: string };
+            if (data?.deviceId) {
+              console.log('WebSocket: Device came online:', data.deviceId);
+              this.notifyOnlineListeners(data.deviceId);
+            }
+          }
+
+        } catch (parseError) {
+          console.error('WebSocket: Failed to parse message chunk', parseError, rawMessage);
         }
       }
-      
-      // Handle real-time telemetry from ESP32 devices
-      // Telemetry is room-based - only received if joined to the device's home
-      if (message.type === 'device_telemetry') {
-        const data = message.payload as TelemetryPayload;
-        if (data?.deviceId) {
-          this.notifyTelemetryListeners(data.deviceId, data);
-        }
-      }
-      
-      // v3.0: Handle entity value updates
-      if (message.type === 'entity_update') {
-        const data = message.payload as EntityUpdatePayload;
-        if (data?.entityId) {
-          this.notifyEntityUpdateListeners(data.entityId, data);
-        }
-      }
-      
-      // v3.0: Handle device discovery (new device announces capabilities)
-      if (message.type === 'device_discovered') {
-        const data = message.payload as DeviceDiscoveredPayload;
-        if (data?.deviceId && data?.entities) {
-          console.log('WebSocket: Device discovered:', data.deviceId, 'with', data.entities.length, 'entities');
-          this.notifyDiscoveryListeners(data.deviceId, data.entities);
-        }
-      }
-      
-      // v3.0: Handle device offline (LWT)
-      if (message.type === 'device_offline') {
-        const data = message.payload as DeviceOfflinePayload;
-        if (data?.deviceId) {
-          console.log('WebSocket: Device went offline:', data.deviceId);
-          this.notifyOfflineListeners(data.deviceId);
-        }
-      }
-      
-      // v3.0: Handle device online
-      if (message.type === 'device_online') {
-        const data = message.payload as { deviceId: string };
-        if (data?.deviceId) {
-          console.log('WebSocket: Device came online:', data.deviceId);
-          this.notifyOnlineListeners(data.deviceId);
-        }
-      }
-      
+
     } catch (error) {
       console.error('WebSocket: Failed to parse message', error);
     }
   }
-  
+
   /**
    * Schedule reconnection with exponential backoff
    */
@@ -325,9 +338,9 @@ class WebSocketService {
       console.error('WebSocket: Max reconnect attempts reached');
       return;
     }
-    
+
     let delay: number;
-    
+
     if (this.isServerShutdown) {
       // Use server-suggested delay to prevent thundering herd
       delay = this.serverSuggestedDelay;
@@ -340,15 +353,15 @@ class WebSocketService {
         this.maxReconnectDelay
       );
     }
-    
+
     this.reconnectAttempts++;
     console.log(`WebSocket: Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
-    
+
     this.reconnectTimeout = setTimeout(() => {
       this.connect();
     }, delay);
   }
-  
+
   /**
    * Flush queued messages
    */
@@ -360,7 +373,7 @@ class WebSocketService {
       }
     }
   }
-  
+
   /**
    * Send a message to the server
    */
@@ -376,7 +389,7 @@ class WebSocketService {
       }
     }
   }
-  
+
   /**
    * Subscribe to a specific message type
    */
@@ -385,7 +398,7 @@ class WebSocketService {
       this.messageListeners.set(type, new Set());
     }
     this.messageListeners.get(type)!.add(callback);
-    
+
     // Return unsubscribe function
     return () => {
       const listeners = this.messageListeners.get(type);
@@ -397,7 +410,7 @@ class WebSocketService {
       }
     };
   }
-  
+
   /**
    * Emit to type-specific listeners
    */
@@ -407,7 +420,7 @@ class WebSocketService {
       listeners.forEach((callback) => callback(payload));
     }
   }
-  
+
   /**
    * Subscribe to device updates
    */
@@ -418,9 +431,9 @@ class WebSocketService {
       // Tell server we want updates for this device
       this.send({ type: 'device:subscribe', payload: { deviceId } });
     }
-    
+
     this.deviceListeners.get(deviceId)!.add(callback);
-    
+
     // Return unsubscribe function
     return () => {
       const listeners = this.deviceListeners.get(deviceId);
@@ -434,23 +447,23 @@ class WebSocketService {
       }
     };
   }
-  
+
   /**
    * Subscribe to connection status
    */
   onConnectionChange(callback: ConnectionCallback): () => void {
     this.connectionListeners.add(callback);
-    
+
     // Immediately notify current state
     if (this.ws) {
       callback(this.ws.readyState === WebSocket.OPEN);
     }
-    
+
     return () => {
       this.connectionListeners.delete(callback);
     };
   }
-  
+
   /**
    * Notify device listeners
    */
@@ -460,7 +473,7 @@ class WebSocketService {
       listeners.forEach((callback) => callback(data as Device));
     }
   }
-  
+
   /**
    * Notify telemetry listeners
    */
@@ -470,11 +483,11 @@ class WebSocketService {
     if (listeners) {
       listeners.forEach((callback) => callback(data));
     }
-    
+
     // Notify global telemetry listeners
     this.globalTelemetryListeners.forEach((callback) => callback(data));
   }
-  
+
   /**
    * Notify entity update listeners (v3.0)
    */
@@ -484,52 +497,52 @@ class WebSocketService {
     if (listeners) {
       listeners.forEach((callback) => callback(data));
     }
-    
+
     // Notify global entity update listeners
     this.globalEntityUpdateListeners.forEach((callback) => callback(data));
   }
-  
+
   /**
    * Notify discovery listeners (v3.0)
    */
   private notifyDiscoveryListeners(deviceId: string, entities: DeviceEntity[]): void {
     this.discoveryListeners.forEach((callback) => callback(deviceId, entities));
   }
-  
+
   /**
    * Notify offline listeners (v3.0)
    */
   private notifyOfflineListeners(deviceId: string): void {
     this.offlineListeners.forEach((callback) => callback(deviceId));
   }
-  
+
   /**
    * Notify online listeners (v3.0)
    */
   private notifyOnlineListeners(deviceId: string): void {
     this.onlineListeners.forEach((callback) => callback(deviceId));
   }
-  
+
   /**
    * Notify connection listeners
    */
   private notifyConnectionListeners(connected: boolean): void {
     this.connectionListeners.forEach((callback) => callback(connected));
   }
-  
+
   /**
    * Subscribe to entities
    */
   subscribeToEntities(callback: (data: unknown) => void): () => void {
     // Subscribe to entity updates
     const unsubscribe = this.on('entity_update', callback);
-    
+
     // Request initial entities
     this.send({ type: 'subscribe_entities', payload: {} });
-    
+
     return unsubscribe;
   }
-  
+
   /**
    * Call a service
    */
@@ -541,7 +554,7 @@ class WebSocketService {
         unsubscribe();
         resolve(result?.success || false);
       });
-      
+
       this.send({
         type: 'call_service',
         payload: {
@@ -551,7 +564,7 @@ class WebSocketService {
           target: targetId ? { entity_id: targetId } : undefined
         }
       });
-      
+
       // Timeout after 10 seconds
       setTimeout(() => {
         unsubscribe();
@@ -559,7 +572,7 @@ class WebSocketService {
       }, 10000);
     });
   }
-  
+
   /**
    * Get initial entities
    */
@@ -575,9 +588,9 @@ class WebSocketService {
           resolve([]);
         }
       });
-      
+
       this.send({ type: 'subscribe_entities', payload: {} });
-      
+
       // Timeout after 10 seconds
       setTimeout(() => {
         unsubscribe();
@@ -585,7 +598,7 @@ class WebSocketService {
       }, 10000);
     });
   }
-  
+
   /**
    * Join a home room for updates
    */
@@ -594,7 +607,7 @@ class WebSocketService {
     this.send({ type: 'join:home', payload: { homeId } });
     console.log('WebSocket: Joining home', homeId);
   }
-  
+
   /**
    * Leave a home room
    */
@@ -605,7 +618,7 @@ class WebSocketService {
     this.send({ type: 'leave:home', payload: { homeId } });
     console.log('WebSocket: Leaving home', homeId);
   }
-  
+
   /**
    * Subscribe to dashboard updates
    */
@@ -615,7 +628,7 @@ class WebSocketService {
       callback(data.homeId);
     });
   }
-  
+
   /**
    * Subscribe to telemetry for a specific device (v2.0)
    * NOTE: You must join the device's home room first to receive telemetry
@@ -625,7 +638,7 @@ class WebSocketService {
       this.telemetryListeners.set(deviceId, new Set());
     }
     this.telemetryListeners.get(deviceId)!.add(callback);
-    
+
     return () => {
       const listeners = this.telemetryListeners.get(deviceId);
       if (listeners) {
@@ -636,7 +649,7 @@ class WebSocketService {
       }
     };
   }
-  
+
   /**
    * Subscribe to all telemetry from joined home
    * NOTE: You must join a home room first to receive telemetry
@@ -647,11 +660,11 @@ class WebSocketService {
       this.globalTelemetryListeners.delete(callback);
     };
   }
-  
+
   // =========================================
   // v3.0 Entity-Based Subscription Methods
   // =========================================
-  
+
   /**
    * Subscribe to updates for a specific entity (v3.0)
    * @param entityId Entity identifier (e.g., "relay_1")
@@ -661,7 +674,7 @@ class WebSocketService {
       this.entityUpdateListeners.set(entityId, new Set());
     }
     this.entityUpdateListeners.get(entityId)!.add(callback);
-    
+
     return () => {
       const listeners = this.entityUpdateListeners.get(entityId);
       if (listeners) {
@@ -672,7 +685,7 @@ class WebSocketService {
       }
     };
   }
-  
+
   /**
    * Subscribe to all entity updates from joined home (v3.0)
    * NOTE: You must join a home room first to receive updates
@@ -683,7 +696,7 @@ class WebSocketService {
       this.globalEntityUpdateListeners.delete(callback);
     };
   }
-  
+
   /**
    * Subscribe to device discovery events (v3.0)
    * Called when a new device announces its capabilities
@@ -694,7 +707,7 @@ class WebSocketService {
       this.discoveryListeners.delete(callback);
     };
   }
-  
+
   /**
    * Subscribe to device offline events (v3.0)
    * Called when LWT indicates device disconnected
@@ -705,7 +718,7 @@ class WebSocketService {
       this.offlineListeners.delete(callback);
     };
   }
-  
+
   /**
    * Subscribe to device online events (v3.0)
    * Called when device reconnects
@@ -716,7 +729,7 @@ class WebSocketService {
       this.onlineListeners.delete(callback);
     };
   }
-  
+
   /**
    * Send a command to an entity (v3.0)
    */
@@ -734,7 +747,7 @@ class WebSocketService {
       },
     });
   }
-  
+
   /**
    * Subscribe to any event type by name (PBAC v2.0)
    * Generic method for subscribing to custom events like PERMISSION_UPDATE
@@ -742,21 +755,21 @@ class WebSocketService {
   subscribeToEvent(eventType: string, callback: MessageCallback): () => void {
     return this.on(eventType, callback);
   }
-  
+
   /**
    * Check if WebSocket is connected
    */
   get isConnected(): boolean {
     return this.ws?.readyState === WebSocket.OPEN;
   }
-  
+
   /**
    * Get current home ID (v2.0)
    */
   get currentHome(): string | null {
     return this.currentHomeId;
   }
-  
+
   /**
    * Reconnect with new token (after refresh)
    */
@@ -764,7 +777,7 @@ class WebSocketService {
     this.disconnect();
     this.connect();
   }
-  
+
   /**
    * Subscribe to state changes (for useHass compatibility)
    * Returns all states when any entity updates
@@ -778,7 +791,7 @@ class WebSocketService {
       callback(states);
     });
   }
-  
+
   /**
    * Connect with Promise return (for useHass compatibility)
    */
@@ -787,7 +800,7 @@ class WebSocketService {
       const timeout = setTimeout(() => {
         reject(new Error('Connection timeout'));
       }, 10000);
-      
+
       const unsubscribe = this.onConnectionChange((connected) => {
         if (connected) {
           clearTimeout(timeout);
@@ -795,7 +808,7 @@ class WebSocketService {
           resolve();
         }
       });
-      
+
       this.connect();
     });
   }

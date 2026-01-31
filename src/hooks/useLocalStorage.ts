@@ -17,6 +17,10 @@ export function useLocalStorage<T>(
       const item = window.localStorage.getItem(key);
       return item ? (JSON.parse(item) as T) : initialValue;
     } catch (error) {
+      // If parsing fails, it might be a raw string value
+      const item = window.localStorage.getItem(key);
+      if (item) return item as unknown as T;
+
       console.warn(`Error reading localStorage key "${key}":`, error);
       return initialValue;
     }
@@ -35,7 +39,7 @@ export function useLocalStorage<T>(
       try {
         const valueToStore = value instanceof Function ? value(storedValue) : value;
         setStoredValue(valueToStore);
-        
+
         if (typeof window !== 'undefined') {
           window.localStorage.setItem(key, JSON.stringify(valueToStore));
         }

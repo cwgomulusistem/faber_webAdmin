@@ -17,6 +17,7 @@ export interface AuthResult {
   token: string;
   refreshToken: string;
   expiresIn: number;
+  homes?: { id: string; name: string; role: string }[]; // From backend
 }
 
 export const authService = {
@@ -32,9 +33,9 @@ export const authService = {
       clientId: tokenManager.getClientId(),
       clientType: tokenManager.getClientType(),
     };
-    
+
     const response = await api.post<TokenResponse | { message: string }>('/auth/login', loginPayload);
-    
+
     if (response.status === 202) {
       return { require2FA: true };
     }
@@ -43,7 +44,7 @@ export const authService = {
     const responseData = response.data as ApiResponse<TokenResponse>;
     const data = responseData.data!;
     tokenManager.setTokens(data.accessToken, data.refreshToken);
-    
+
     return {
       result: {
         user: data.user!,
@@ -53,10 +54,10 @@ export const authService = {
       }
     };
   },
-  
+
   /**
-   * Admin login
-   * POST /api/v1/auth/admin/login
+   * Admin login (Alias for User Login)
+   * POST /api/v1/auth/login (Uses standard user authentication)
    * Includes device binding (clientId, clientType) for token security
    */
   async adminLogin(payload: LoginPayload): Promise<{ result?: AuthResult; require2FA?: boolean }> {
@@ -66,9 +67,9 @@ export const authService = {
       clientId: tokenManager.getClientId(),
       clientType: tokenManager.getClientType(),
     };
-    
+
     const response = await api.post<TokenResponse | { message: string }>('/auth/login', loginPayload);
-    
+
     if (response.status === 202) {
       return { require2FA: true };
     }
@@ -77,17 +78,18 @@ export const authService = {
     const responseData = response.data as ApiResponse<TokenResponse>;
     const data = responseData.data!;
     tokenManager.setTokens(data.accessToken, data.refreshToken);
-    
+
     return {
       result: {
         user: data.user!,
         token: data.accessToken,
         refreshToken: data.refreshToken,
         expiresIn: data.expiresIn,
+        homes: data.homes, // Pass homes from backend
       }
     };
   },
-  
+
   /**
    * User registration
    * POST /api/v1/auth/register
@@ -105,7 +107,7 @@ export const authService = {
       clientId: tokenManager.getClientId(),
       clientType: tokenManager.getClientType(),
     };
-    
+
     const response = await api.post<TokenResponse | { message: string }>(
       '/auth/register',
       registerPayload
@@ -120,7 +122,7 @@ export const authService = {
     const responseData = response.data as ApiResponse<TokenResponse>;
     const data = responseData.data!;
     tokenManager.setTokens(data.accessToken, data.refreshToken);
-    
+
     return {
       result: {
         user: data.user!,
@@ -158,13 +160,13 @@ export const authService = {
       clientId: tokenManager.getClientId(),
       clientType: tokenManager.getClientType(),
     };
-    
+
     const response = await api.post<ApiResponse<TokenResponse>>('/auth/verify-2fa', verify2FAPayload);
     // Backend returns wrapped ApiResponse
     const data = response.data.data!;
-    
+
     tokenManager.setTokens(data.accessToken, data.refreshToken);
-    
+
     return {
       user: data.user!,
       token: data.accessToken,
@@ -188,7 +190,7 @@ export const authService = {
   async resetPassword(payload: { email: string; code: string; newPassword: string }): Promise<void> {
     await api.post('/auth/reset-password', payload);
   },
-  
+
   /**
    * Google OAuth login
    * POST /api/v1/auth/google
@@ -200,13 +202,13 @@ export const authService = {
       clientId: tokenManager.getClientId(),
       clientType: tokenManager.getClientType(),
     };
-    
+
     const response = await api.post<ApiResponse<TokenResponse>>('/auth/google', googlePayload);
     // Backend returns wrapped ApiResponse
     const data = response.data.data!;
-    
+
     tokenManager.setTokens(data.accessToken, data.refreshToken);
-    
+
     return {
       user: data.user!,
       token: data.accessToken,
@@ -214,7 +216,7 @@ export const authService = {
       expiresIn: data.expiresIn,
     };
   },
-  
+
   /**
    * Logout
    * POST /api/v1/auth/logout
@@ -226,17 +228,20 @@ export const authService = {
       tokenManager.clearTokens();
     }
   },
-  
+
   /**
    * Get current user info
    * GET /api/v1/auth/profile
    */
   async getCurrentUser(): Promise<User | AdminUser> {
-    // Backend returns user directly (not wrapped in ApiResponse)
-    const response = await api.get<User | AdminUser>('/auth/profile');
-    return response.data;
+    // Backend returns wrapped ApiResponse
+    const response = await api.get<ApiResponse<User | AdminUser>>('/auth/profile');
+    if (!response.data.data) {
+      throw new Error('User data not found');
+    }
+    return response.data.data;
   },
-  
+
   /**
    * Change password
    * POST /api/v1/auth/change-password
@@ -244,7 +249,7 @@ export const authService = {
   async changePassword(currentPassword: string, newPassword: string): Promise<void> {
     await api.post('/auth/change-password', { currentPassword, newPassword });
   },
-  
+
   /**
    * Check if user is authenticated (client-side)
    */

@@ -24,17 +24,17 @@ const initialState: AuthContextType = {
   isLoading: true,
   error: null,
   userType: null,
-  login: async () => {},
-  adminLogin: async () => {},
-  register: async () => {},
-  googleLogin: async () => {},
-  logout: async () => {},
-  refreshAuth: async () => {},
-  clearError: () => {},
-  activate: async () => {},
-  verify2FA: async () => {},
-  forgotPassword: async () => {},
-  resetPassword: async () => {},
+  login: async () => { },
+  adminLogin: async () => { },
+  register: async () => { },
+  googleLogin: async () => { },
+  logout: async () => { },
+  refreshAuth: async () => { },
+  clearError: () => { },
+  activate: async () => { },
+  verify2FA: async () => { },
+  forgotPassword: async () => { },
+  resetPassword: async () => { },
 };
 
 // Create context
@@ -95,11 +95,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setError(null);
     try {
       const result = await authService.login(payload);
-      
+
       if (result.require2FA) {
         return { require2FA: true };
       }
-      
+
       if (result.result) {
         handleAuthResult(result.result, 'user');
       }
@@ -118,13 +118,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setError(null);
     try {
       const result = await authService.adminLogin(payload);
-      
+
       if (result.require2FA) {
         return { require2FA: true };
       }
 
       if (result.result) {
         handleAuthResult(result.result, 'admin');
+
+        // Auto-select home if user has exactly one
+        if (result.result.homes && result.result.homes.length === 1) {
+          localStorage.setItem('activeHomeId', result.result.homes[0].id);
+        } else if (result.result.homes && result.result.homes.length > 1) {
+          // Multiple homes - clear stale selection, let user pick
+          localStorage.removeItem('activeHomeId');
+          // Frontend can redirect to /select-home if needed
+        }
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Admin girişi başarısız';
@@ -141,7 +150,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setError(null);
     try {
       const result = await authService.register(payload);
-      
+
       // If activation required, return early
       if (result.requireActivation) {
         return { requireActivation: true };
@@ -253,7 +262,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Refresh auth
   const refreshAuth = useCallback(async () => {
     if (!tokenManager.isAuthenticated()) return;
-    
+
     try {
       const currentUser = await authService.getCurrentUser();
       setUser(currentUser);

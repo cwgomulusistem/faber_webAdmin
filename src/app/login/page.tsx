@@ -14,7 +14,7 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { adminLogin, verify2FA } = useAuth();
-  
+
   const [step, setStep] = useState<'login' | '2fa'>('login');
   const [identifier, setIdentifier] = useState(''); // Email OR Username (PBAC v2.0)
   const [password, setPassword] = useState('');
@@ -26,6 +26,7 @@ function LoginForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     setIsLoading(true);
     setError('');
 
