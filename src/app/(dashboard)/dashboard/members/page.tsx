@@ -112,8 +112,10 @@ export default function MembersPage() {
     };
 
     useEffect(() => {
-        fetchAllMembers();
-    }, []);
+        if (!authLoading && isMaster) {
+            fetchAllMembers();
+        }
+    }, [authLoading, isMaster]);
 
     // Filter members
     const filteredMembers = members.filter(member => {

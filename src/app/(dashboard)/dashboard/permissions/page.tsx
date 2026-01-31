@@ -1,15 +1,33 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { PermissionHeader } from '@/components/permissions/PermissionHeader';
 import { UserSidebar } from '@/components/permissions/UserSidebar';
 import { UserProfileSettings } from '@/components/permissions/UserProfileSettings';
 import { ScheduledAccess } from '@/components/permissions/ScheduledAccess';
 import { DeviceAccessList } from '@/components/permissions/DeviceAccessList';
 import { PinManagement } from '@/components/permissions/PinManagement';
+import { useAuth } from '@/contexts/AuthContext';
+import { useRouter } from 'next/navigation';
+import { UserRole } from '@/types/auth.types';
 
 export default function PermissionsPage() {
+    const { user, isLoading: authLoading } = useAuth();
+    const router = useRouter();
     const [selectedUser, setSelectedUser] = React.useState<any>(null);
+
+    // Check if user is master
+    const isMaster = user && 'role' in user && user.role === UserRole.MASTER;
+
+    useEffect(() => {
+        if (!authLoading && !isMaster) {
+            router.push('/dashboard');
+        }
+    }, [isMaster, authLoading, router]);
+
+    if (authLoading || !isMaster) {
+        return null;
+    }
 
     return (
         <div className="flex flex-col h-full overflow-hidden">
