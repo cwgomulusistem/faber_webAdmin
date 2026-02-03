@@ -107,14 +107,81 @@ export interface AuthState {
 
 export interface AuthContextType extends AuthState {
   login: (payload: LoginPayload) => Promise<{ require2FA?: boolean } | void>;
-  adminLogin: (payload: LoginPayload) => Promise<{ require2FA?: boolean } | void>;
+  adminLogin: (payload: LoginPayload) => Promise<LoginResult | void>;
   register: (payload: RegisterPayload) => Promise<{ requireActivation?: boolean } | void>;
   activate: (payload: ActivatePayload) => Promise<void>;
   verify2FA: (payload: Verify2FAPayload) => Promise<void>;
+  verify2FAWithPreAuth: (payload: { code: string }) => Promise<void>;
+  verifyRecoveryCode: (payload: { code: string }) => Promise<void>;
   forgotPassword: (payload: ForgotPasswordPayload) => Promise<void>;
   resetPassword: (payload: ResetPasswordPayload) => Promise<void>;
   googleLogin: (payload: GoogleLoginPayload) => Promise<void>;
   logout: () => Promise<void>;
   refreshAuth: () => Promise<void>;
   clearError: () => void;
+  clearLockout: () => void;
+  // Pre-auth state
+  isPreAuth: boolean;
+  preAuthToken: string | null;
+  preAuthUserId: string | null;
+  twoFactorType: string | null;
+}
+
+// ==================== LOGIN ERROR RESPONSE ====================
+
+export type LoginErrorCode = 
+  | 'INVALID_CREDENTIALS'
+  | 'ACCOUNT_LOCKED'
+  | '2FA_REQUIRED'
+  | 'ACCOUNT_INACTIVE'
+  | '2FA_LOCKED';
+
+export interface LoginErrorResponse {
+  error: string;
+  code: LoginErrorCode;
+  remainingAttempts?: number;
+  lockedUntil?: number; // Unix timestamp
+  retryAfter?: number; // Seconds
+}
+
+// ==================== PRE-AUTH TOKEN ====================
+
+export interface PreAuthTokenResponse {
+  preAuthToken: string;
+  expiresIn: number;
+  twoFactorType: 'EMAIL' | 'TOTP';
+  userId: string;
+}
+
+// ==================== LOGIN RESULT ====================
+
+export interface LoginResult {
+  require2FA?: boolean;
+  preAuthToken?: string;
+  twoFactorType?: 'EMAIL' | 'TOTP';
+  userId?: string;
+  lockout?: {
+    isLocked: boolean;
+    lockedUntil?: number;
+    retryAfter?: number;
+    remainingAttempts?: number;
+  };
+}
+
+// ==================== SECURITY STATUS ====================
+
+export interface SecurityStatus {
+  twoFactorEnabled: boolean;
+  twoFactorType: 'EMAIL' | 'TOTP' | 'NONE';
+  recoveryCodesLeft: number;
+  email: string;
+  phone?: string;
+}
+
+// ==================== TOTP SETUP ====================
+
+export interface TOTPSetupResponse {
+  secret: string;
+  qrCodeUrl: string;
+  recoveryCodes: string[];
 }

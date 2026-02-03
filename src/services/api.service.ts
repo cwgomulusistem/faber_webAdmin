@@ -13,6 +13,7 @@ const TOKEN_KEY = 'admin_token';
 const REFRESH_TOKEN_KEY = 'admin_refresh_token';
 const CLIENT_ID_KEY = 'faber_client_id'; // Device binding - unique client identifier
 const CLIENT_TYPE = 'WEB' as const; // WEB or MOBILE
+const PRE_AUTH_TOKEN_KEY = 'pre_auth_token'; // Temporary token for 2FA flow
 
 // Create axios instance
 const api = axios.create({
@@ -56,9 +57,35 @@ export const tokenManager = {
     Cookies.remove(TOKEN_KEY);
     Cookies.remove(REFRESH_TOKEN_KEY);
     // Note: We do NOT clear CLIENT_ID_KEY - it's device-bound, not session-bound
+    // Also clear pre-auth token if present
+    sessionStorage.removeItem(PRE_AUTH_TOKEN_KEY);
   },
 
   isAuthenticated: (): boolean => !!Cookies.get(TOKEN_KEY),
+
+  // Pre-auth token management (for 2FA flow)
+  // Stored in sessionStorage (not cookies) - valid only for current tab/session
+  setPreAuthToken: (token: string): void => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem(PRE_AUTH_TOKEN_KEY, token);
+    }
+  },
+
+  getPreAuthToken: (): string | null => {
+    if (typeof window === 'undefined') return null;
+    return sessionStorage.getItem(PRE_AUTH_TOKEN_KEY);
+  },
+
+  clearPreAuthToken: (): void => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem(PRE_AUTH_TOKEN_KEY);
+    }
+  },
+
+  hasPreAuthToken: (): boolean => {
+    if (typeof window === 'undefined') return false;
+    return !!sessionStorage.getItem(PRE_AUTH_TOKEN_KEY);
+  },
 };
 
 // Flag to prevent multiple refresh attempts
