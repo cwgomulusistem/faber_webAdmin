@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   Shield, Download, Search, AlertTriangle, CheckCircle, Bell,
@@ -34,6 +34,10 @@ export default function AuditLogsPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isExporting, setIsExporting] = useState(false);
+  
+  // Track initial mount to prevent StrictMode double-fetch
+  const isInitialMount = useRef(true);
+  const lastFetchParams = useRef({ page: 0, filters: '' });
 
   // Fetch logs
   const fetchLogs = useCallback(async () => {
@@ -57,8 +61,23 @@ export default function AuditLogsPage() {
   }, [page, filters]);
 
   useEffect(() => {
-    fetchLogs();
-  }, [fetchLogs]);
+    const currentParams = { page, filters: JSON.stringify(filters) };
+    
+    // Skip if same params (StrictMode double-mount)
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      lastFetchParams.current = currentParams;
+      fetchLogs();
+      return;
+    }
+    
+    // Only fetch if params actually changed
+    if (lastFetchParams.current.page !== currentParams.page || 
+        lastFetchParams.current.filters !== currentParams.filters) {
+      lastFetchParams.current = currentParams;
+      fetchLogs();
+    }
+  }, [fetchLogs, page, filters]);
 
   // Handle search
   const handleSearch = (e: React.FormEvent) => {

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Search, Home, Key, Clock, Bell, Users, Building2 } from 'lucide-react';
 import api from '@/services/api.service';
 import { cn } from '@/lib/utils';
@@ -44,6 +44,9 @@ export default function MembersPage() {
 
     // Check if user is master (can invite)
     const isMaster = user && 'role' in user && user.role === UserRole.MASTER;
+    
+    // Prevent double fetching in React StrictMode
+    const hasFetchedRef = useRef(false);
 
     useEffect(() => {
         if (!authLoading && !isMaster) {
@@ -113,6 +116,8 @@ export default function MembersPage() {
 
     useEffect(() => {
         if (!authLoading && isMaster) {
+            if (hasFetchedRef.current) return;
+            hasFetchedRef.current = true;
             fetchAllMembers();
         }
     }, [authLoading, isMaster]);

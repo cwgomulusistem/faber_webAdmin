@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, Home, MapPin, Trash2, Edit2, Check, X, Search, Bell } from 'lucide-react';
 import { cn, setActiveHomeId } from '@/lib/utils';
@@ -25,6 +25,9 @@ export default function HomesPage() {
     const [newHomeAddress, setNewHomeAddress] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
     const { isConnected } = useSocket();
+    
+    // Prevent double fetching in React StrictMode
+    const hasFetchedRef = useRef(false);
 
     const fetchHomes = async () => {
         try {
@@ -39,6 +42,8 @@ export default function HomesPage() {
     };
 
     useEffect(() => {
+        if (hasFetchedRef.current) return;
+        hasFetchedRef.current = true;
         fetchHomes();
     }, []);
 

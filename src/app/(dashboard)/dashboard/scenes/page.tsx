@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Play, Pause, Plus, Clock, Moon, Sun, Key, Video, Bell, Wind, Droplets, Search, Loader2, Zap, Home, Lightbulb, Thermometer, Lock, Settings } from 'lucide-react';
 import { cn, getActiveHomeId } from '@/lib/utils';
 import { ConnectionStatus } from '@/components/common/ConnectionStatus';
-import { sceneService } from '@/services/scene.service';
+import { adminService } from '@/services/admin.service';
 import type { Scene, SceneTrigger } from '@/types/scene.types';
 
 // Icon mapping for scenes
@@ -43,16 +43,16 @@ export default function ScenesPage() {
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [executingSceneId, setExecutingSceneId] = useState<string | null>(null);
   const [togglingSceneId, setTogglingSceneId] = useState<string | null>(null);
+  
+  // Prevent double fetching in React StrictMode
+  const hasFetchedRef = useRef(false);
 
   const fetchScenes = useCallback(async () => {
     try {
       setLoading(true);
       const homeId = getActiveHomeId();
-      if (!homeId) {
-        setScenes([]);
-        return;
-      }
-      const data = await sceneService.getScenes(homeId);
+      // Admin can see all scenes, or filter by homeId if selected
+      const data = await adminService.getScenes(homeId || undefined);
       setScenes(data);
     } catch (err) {
       console.error('Failed to fetch scenes:', err);
@@ -63,13 +63,15 @@ export default function ScenesPage() {
   }, []);
 
   useEffect(() => {
+    if (hasFetchedRef.current) return;
+    hasFetchedRef.current = true;
     fetchScenes();
   }, [fetchScenes]);
 
   const handleExecuteScene = async (sceneId: string) => {
     try {
       setExecutingSceneId(sceneId);
-      await sceneService.executeScene(sceneId);
+      await adminService.executeScene(sceneId);
       // Optionally show success toast
     } catch (err) {
       console.error('Failed to execute scene:', err);
@@ -81,7 +83,7 @@ export default function ScenesPage() {
   const handleToggleScene = async (sceneId: string, currentState: boolean) => {
     try {
       setTogglingSceneId(sceneId);
-      const updatedScene = await sceneService.toggleScene(sceneId, !currentState);
+      const updatedScene = await adminService.toggleScene(sceneId, !currentState);
       setScenes(prev => prev.map(s => s.id === sceneId ? updatedScene : s));
     } catch (err) {
       console.error('Failed to toggle scene:', err);

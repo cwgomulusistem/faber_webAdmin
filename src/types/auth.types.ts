@@ -111,7 +111,7 @@ export interface AuthContextType extends AuthState {
   register: (payload: RegisterPayload) => Promise<{ requireActivation?: boolean } | void>;
   activate: (payload: ActivatePayload) => Promise<void>;
   verify2FA: (payload: Verify2FAPayload) => Promise<void>;
-  verify2FAWithPreAuth: (payload: { code: string }) => Promise<void>;
+  verify2FAWithPreAuth: (payload: { code: string; rememberMe?: boolean; hardwareFingerprint?: string }) => Promise<void>;
   verifyRecoveryCode: (payload: { code: string }) => Promise<void>;
   forgotPassword: (payload: ForgotPasswordPayload) => Promise<void>;
   resetPassword: (payload: ResetPasswordPayload) => Promise<void>;

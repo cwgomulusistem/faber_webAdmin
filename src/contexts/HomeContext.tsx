@@ -3,7 +3,7 @@
 // Home Context
 // Manages user's homes and active home selection
 
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from './AuthContext';
 import { homeService } from '../services/home.service';
 import { useLocalStorage } from '../hooks/useLocalStorage';
@@ -45,6 +45,9 @@ export function HomeProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeHomeId, setActiveHomeId] = useLocalStorage<string | null>(ACTIVE_HOME_KEY, null);
+  
+  // Prevent double fetching in React StrictMode
+  const hasFetchedRef = useRef(false);
 
   // Load homes from API
   const loadHomes = useCallback(async () => {
@@ -77,10 +80,29 @@ export function HomeProvider({ children }: { children: React.ReactNode }) {
     }
   }, [isAuthenticated, activeHomeId, setActiveHomeId]);
 
-  // Initial load
+  // Reset fetch flag when user logs out
   useEffect(() => {
+    if (!isAuthenticated) {
+      hasFetchedRef.current = false;
+      setHomes([]);
+    }
+  }, [isAuthenticated]);
+
+  // Initial load - wait for authentication and protect from StrictMode double-fetch
+  useEffect(() => {
+    // Don't fetch if not authenticated yet
+    if (!isAuthenticated) {
+      return;
+    }
+    
+    // Prevent double fetch in StrictMode
+    if (hasFetchedRef.current) {
+      return;
+    }
+    hasFetchedRef.current = true;
+    
     loadHomes();
-  }, [loadHomes]);
+  }, [isAuthenticated, loadHomes]);
 
   // Get active home from homes list
   const activeHome = useMemo(() => {

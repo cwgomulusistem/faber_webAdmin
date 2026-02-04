@@ -1,12 +1,11 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useEffect } from 'react';
 import { 
-  User, Bell, Shield, Settings2, Search, 
+  User, Bell, Shield, Settings2,
   AlertTriangle, CheckCircle, Loader2, Eye, EyeOff,
   Copy, Download, Smartphone, Mail, Key, Lock,
-  ChevronRight, RefreshCw, Trash2, AlertCircle,
+  RefreshCw, Trash2, AlertCircle,
   Monitor, Globe, Clock, X
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -17,8 +16,128 @@ import type { SecurityStatus, TOTPSetupResponse } from '@/types/auth.types';
 
 type TabType = 'profile' | 'security' | 'notifications' | 'preferences';
 
+// Reusable Card Component
+function SettingsCard({ 
+  children, 
+  icon: Icon, 
+  iconColor = 'blue',
+  title, 
+  description 
+}: { 
+  children: React.ReactNode;
+  icon: React.ElementType;
+  iconColor?: 'blue' | 'green' | 'purple' | 'amber';
+  title: string;
+  description?: string;
+}) {
+  const colorClasses = {
+    blue: 'from-blue-500 to-blue-600 shadow-blue-500/20',
+    green: 'from-emerald-500 to-emerald-600 shadow-emerald-500/20',
+    purple: 'from-violet-500 to-violet-600 shadow-violet-500/20',
+    amber: 'from-amber-500 to-amber-600 shadow-amber-500/20',
+  };
+
+  return (
+    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+      <div className="p-6">
+        <div className="flex items-center gap-4 mb-6">
+          <div className={cn(
+            "w-12 h-12 rounded-xl bg-gradient-to-br flex items-center justify-center shadow-lg",
+            colorClasses[iconColor]
+          )}>
+            <Icon className="text-white" size={22} />
+          </div>
+          <div>
+            <h3 className="text-lg font-semibold text-slate-900 dark:text-white">{title}</h3>
+            {description && (
+              <p className="text-sm text-slate-500 mt-0.5">{description}</p>
+            )}
+          </div>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// Reusable Input Component
+function FormInput({
+  label,
+  type = 'text',
+  value,
+  onChange,
+  placeholder,
+  disabled,
+  icon: Icon,
+  showToggle,
+  onToggle,
+  isVisible,
+  error,
+  success,
+  hint,
+}: {
+  label: string;
+  type?: string;
+  value: string;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  placeholder?: string;
+  disabled?: boolean;
+  icon?: React.ElementType;
+  showToggle?: boolean;
+  onToggle?: () => void;
+  isVisible?: boolean;
+  error?: string;
+  success?: boolean;
+  hint?: string;
+}) {
+  return (
+    <div className="space-y-2">
+      <label className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
+        {Icon && <Icon size={14} className="text-slate-400" />}
+        {label}
+      </label>
+      <div className="relative">
+        <input
+          type={showToggle ? (isVisible ? 'text' : 'password') : type}
+          value={value}
+          onChange={onChange}
+          placeholder={placeholder}
+          disabled={disabled}
+          className={cn(
+            "w-full h-11 px-4 rounded-xl border bg-white dark:bg-slate-800 outline-none transition-all",
+            "placeholder:text-slate-400 text-slate-900 dark:text-white",
+            disabled && "bg-slate-50 dark:bg-slate-900 text-slate-500 cursor-not-allowed",
+            error 
+              ? "border-red-300 dark:border-red-500/50 focus:border-red-500 focus:ring-2 focus:ring-red-500/20"
+              : success 
+                ? "border-green-300 dark:border-green-500/50 focus:border-green-500 focus:ring-2 focus:ring-green-500/20"
+                : "border-slate-200 dark:border-slate-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20",
+            (showToggle || success || error) && "pr-12"
+          )}
+        />
+        {showToggle && (
+          <button
+            type="button"
+            onClick={onToggle}
+            className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded text-slate-400 hover:text-slate-600 transition-colors"
+          >
+            {isVisible ? <EyeOff size={18} /> : <Eye size={18} />}
+          </button>
+        )}
+        {!showToggle && success && (
+          <CheckCircle size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-green-500" />
+        )}
+        {!showToggle && error && (
+          <AlertCircle size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-red-500" />
+        )}
+      </div>
+      {hint && !error && <p className="text-xs text-slate-400">{hint}</p>}
+      {error && <p className="text-xs text-red-500 font-medium">{error}</p>}
+    </div>
+  );
+}
+
 export default function SettingsPage() {
-  const router = useRouter();
   const { isConnected } = useSocket();
   const { user, refreshAuth } = useAuth();
 
@@ -60,7 +179,6 @@ export default function SettingsPage() {
   const [language, setLanguage] = useState('tr');
   const [timezone, setTimezone] = useState('Europe/Istanbul');
 
-  // Load user data
   useEffect(() => {
     if (user) {
       setFullName(user.fullName || '');
@@ -71,7 +189,6 @@ export default function SettingsPage() {
     }
   }, [user]);
 
-  // Load security status and trusted devices
   useEffect(() => {
     if (activeTab === 'security') {
       loadSecurityStatus();
@@ -100,38 +217,6 @@ export default function SettingsPage() {
     }
   };
 
-  const handleRevokeTrustedDevice = async (deviceId: string) => {
-    if (!confirm('Bu cihazı güvenilir cihazlar listesinden kaldırmak istediğinize emin misiniz?')) {
-      return;
-    }
-    setIsLoading(true);
-    try {
-      await authService.revokeTrustedDevice(deviceId);
-      await loadTrustedDevices();
-      showSuccess('Cihaz güvenilir listesinden kaldırıldı');
-    } catch (error: any) {
-      showError(error.message || 'Cihaz kaldırılamadı');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleRevokeAllTrustedDevices = async () => {
-    if (!confirm('Tüm güvenilir cihazları kaldırmak istediğinize emin misiniz? Bir sonraki girişte 2FA kodu girmeniz gerekecek.')) {
-      return;
-    }
-    setIsLoading(true);
-    try {
-      await authService.revokeAllTrustedDevices();
-      await loadTrustedDevices();
-      showSuccess('Tüm güvenilir cihazlar kaldırıldı');
-    } catch (error: any) {
-      showError(error.message || 'Cihazlar kaldırılamadı');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const showSuccess = (message: string) => {
     setSuccessMessage(message);
     setErrorMessage(null);
@@ -144,7 +229,6 @@ export default function SettingsPage() {
     setTimeout(() => setErrorMessage(null), 5000);
   };
 
-  // Profile handlers
   const handleSaveProfile = async () => {
     setIsLoading(true);
     try {
@@ -163,7 +247,6 @@ export default function SettingsPage() {
     }
   };
 
-  // Password handlers
   const handleChangePassword = async () => {
     if (newPassword !== confirmPassword) {
       showError('Şifreler eşleşmiyor');
@@ -188,7 +271,6 @@ export default function SettingsPage() {
     }
   };
 
-  // TOTP handlers
   const handleSetupTOTP = async () => {
     setIsLoading(true);
     try {
@@ -257,6 +339,36 @@ export default function SettingsPage() {
     }
   };
 
+  const handleRevokeTrustedDevice = async (deviceId: string) => {
+    if (!confirm('Bu cihazı güvenilir cihazlar listesinden kaldırmak istediğinize emin misiniz?')) return;
+    
+    setIsLoading(true);
+    try {
+      await authService.revokeTrustedDevice(deviceId);
+      await loadTrustedDevices();
+      showSuccess('Cihaz güvenilir listesinden kaldırıldı');
+    } catch (error: any) {
+      showError(error.message || 'Cihaz kaldırılamadı');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRevokeAllTrustedDevices = async () => {
+    if (!confirm('Tüm güvenilir cihazları kaldırmak istediğinize emin misiniz?')) return;
+    
+    setIsLoading(true);
+    try {
+      await authService.revokeAllTrustedDevices();
+      await loadTrustedDevices();
+      showSuccess('Tüm güvenilir cihazlar kaldırıldı');
+    } catch (error: any) {
+      showError(error.message || 'Cihazlar kaldırılamadı');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     showSuccess('Panoya kopyalandı');
@@ -274,6 +386,16 @@ export default function SettingsPage() {
     setHasDownloadedCodes(true);
   };
 
+  const getPasswordStrength = () => {
+    if (!newPassword) return null;
+    if (newPassword.length < 4) return { level: 1, text: 'Çok zayıf', color: 'red' };
+    if (newPassword.length < 8) return { level: 2, text: 'Zayıf', color: 'orange' };
+    if (newPassword.length < 12) return { level: 3, text: 'Orta', color: 'yellow' };
+    return { level: 4, text: 'Güçlü', color: 'green' };
+  };
+
+  const passwordStrength = getPasswordStrength();
+
   const tabs = [
     { id: 'profile' as TabType, label: 'Profil', icon: User },
     { id: 'security' as TabType, label: 'Güvenlik', icon: Shield },
@@ -282,82 +404,77 @@ export default function SettingsPage() {
   ];
 
   return (
-    <div className="flex flex-col h-full bg-background-light dark:bg-background-dark overflow-hidden">
+    <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-950 overflow-hidden">
       {/* Header */}
-      <header className="h-16 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-6 shrink-0 z-10">
-        <div className="flex items-center gap-6">
-          <div className="flex flex-col">
-            <h1 className="text-lg font-bold text-gray-900 dark:text-white">Ayarlar</h1>
-            <span className="text-xs text-gray-500">Hesap ve Sistem Ayarları</span>
-          </div>
+      <header className="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-6 shrink-0">
+        <div>
+          <h1 className="text-xl font-bold text-slate-900 dark:text-white">Ayarlar</h1>
+          <p className="text-sm text-slate-500">Hesap ve sistem ayarları</p>
         </div>
-
-        <div className="flex items-center gap-4">
-          <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-50 dark:bg-gray-800">
-            <span className="text-xs font-medium text-gray-500">Bağlantı</span>
-            {isConnected ? (
-              <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-            ) : (
-              <span className="w-2 h-2 rounded-full bg-red-500" />
-            )}
-          </div>
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800">
+          <span className="text-xs font-medium text-slate-500">Bağlantı</span>
+          <span className={cn("w-2 h-2 rounded-full", isConnected ? "bg-green-500" : "bg-red-500")} />
         </div>
       </header>
 
-      {/* Success/Error Messages */}
-      {successMessage && (
-        <div className="mx-6 mt-4 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center gap-3 text-green-700">
-          <CheckCircle size={20} />
-          <span>{successMessage}</span>
-        </div>
-      )}
-      {errorMessage && (
-        <div className="mx-6 mt-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-3 text-red-700">
-          <AlertCircle size={20} />
-          <span>{errorMessage}</span>
+      {/* Toast Messages */}
+      {(successMessage || errorMessage) && (
+        <div className="px-6 pt-4">
+          {successMessage && (
+            <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl flex items-center gap-3 text-green-700 dark:text-green-400">
+              <CheckCircle size={20} />
+              <span className="font-medium">{successMessage}</span>
+            </div>
+          )}
+          {errorMessage && (
+            <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl flex items-center gap-3 text-red-700 dark:text-red-400">
+              <AlertCircle size={20} />
+              <span className="font-medium">{errorMessage}</span>
+            </div>
+          )}
         </div>
       )}
 
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar */}
-        <aside className="w-64 flex flex-col bg-white dark:bg-surface-dark border-r border-slate-200 dark:border-slate-800 overflow-y-auto shrink-0 hidden md:flex">
-          <div className="p-4 flex flex-col gap-2">
+        <aside className="w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 overflow-y-auto shrink-0 hidden md:block">
+          <nav className="p-4 space-y-1">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors w-full text-left",
+                  "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all",
                   activeTab === tab.id 
-                    ? "bg-primary/10 text-primary font-semibold" 
+                    ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-semibold" 
                     : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
                 )}
               >
-                <tab.icon size={18} />
-                <span className="text-sm">{tab.label}</span>
+                <tab.icon size={20} />
+                <span>{tab.label}</span>
               </button>
             ))}
-          </div>
+          </nav>
         </aside>
 
         {/* Main Content */}
-        <main className="flex-1 overflow-y-auto p-6 md:p-10">
-          <div className="max-w-[800px] mx-auto">
+        <main className="flex-1 overflow-y-auto p-6 lg:p-8">
+          <div className="max-w-3xl mx-auto space-y-6">
             
-            {/* Mobile Tab Bar */}
-            <div className="flex gap-2 mb-6 overflow-x-auto pb-2 md:hidden">
+            {/* Mobile Tabs */}
+            <div className="flex gap-2 overflow-x-auto pb-2 md:hidden">
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
                   className={cn(
-                    "flex items-center gap-2 px-4 py-2 rounded-lg whitespace-nowrap text-sm font-medium",
+                    "flex items-center gap-2 px-4 py-2.5 rounded-xl whitespace-nowrap text-sm font-medium transition-all",
                     activeTab === tab.id 
-                      ? "bg-primary text-white" 
-                      : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
+                      ? "bg-blue-500 text-white shadow-lg shadow-blue-500/25" 
+                      : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700"
                   )}
                 >
-                  <tab.icon size={16} />
+                  <tab.icon size={18} />
                   {tab.label}
                 </button>
               ))}
@@ -365,262 +482,272 @@ export default function SettingsPage() {
 
             {/* Profile Tab */}
             {activeTab === 'profile' && (
-              <div className="flex flex-col gap-6">
+              <>
                 <div>
                   <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Profil Bilgileri</h2>
                   <p className="text-slate-500 mt-1">Kişisel bilgilerinizi yönetin</p>
                 </div>
 
-                <div className="bg-white dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-slate-800 p-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="flex flex-col gap-2">
-                      <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Ad Soyad</label>
-                      <input
-                        type="text"
-                        value={fullName}
-                        onChange={(e) => setFullName(e.target.value)}
-                        className="h-11 px-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
-                      />
-                    </div>
-                    <div className="flex flex-col gap-2">
-                      <label className="text-sm font-medium text-slate-700 dark:text-slate-300">E-posta</label>
-                      <input
-                        type="email"
-                        value={email}
-                        disabled
-                        className="h-11 px-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-500 cursor-not-allowed"
-                      />
-                      <span className="text-xs text-slate-400">E-posta değiştirilemez</span>
-                    </div>
-                    <div className="flex flex-col gap-2">
-                      <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Telefon</label>
-                      <input
-                        type="tel"
-                        value={phone}
-                        onChange={(e) => setPhone(e.target.value)}
-                        className="h-11 px-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
-                      />
-                    </div>
+                <SettingsCard icon={User} iconColor="blue" title="Kişisel Bilgiler" description="Hesap bilgilerinizi güncelleyin">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <FormInput
+                      label="Ad Soyad"
+                      icon={User}
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      placeholder="Adınız Soyadınız"
+                    />
+                    <FormInput
+                      label="E-posta"
+                      icon={Mail}
+                      value={email}
+                      onChange={() => {}}
+                      disabled
+                      hint="E-posta değiştirilemez"
+                    />
+                    <FormInput
+                      label="Telefon"
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="+90 5XX XXX XX XX"
+                    />
                   </div>
-                </div>
 
-                <div className="flex justify-end gap-3">
-                  <button
-                    onClick={handleSaveProfile}
-                    disabled={isLoading}
-                    className="px-6 py-2.5 rounded-lg bg-primary text-white font-medium hover:bg-blue-600 disabled:opacity-50 flex items-center gap-2"
-                  >
-                    {isLoading && <Loader2 size={18} className="animate-spin" />}
-                    Kaydet
-                  </button>
-                </div>
-              </div>
+                  <div className="mt-6 pt-6 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+                    <button
+                      onClick={handleSaveProfile}
+                      disabled={isLoading}
+                      className="px-6 py-2.5 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-medium transition-all disabled:opacity-50 flex items-center gap-2"
+                    >
+                      {isLoading && <Loader2 size={18} className="animate-spin" />}
+                      Kaydet
+                    </button>
+                  </div>
+                </SettingsCard>
+              </>
             )}
 
             {/* Security Tab */}
             {activeTab === 'security' && (
-              <div className="flex flex-col gap-6">
+              <>
                 <div>
                   <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Güvenlik</h2>
                   <p className="text-slate-500 mt-1">Şifre ve iki faktörlü doğrulama ayarları</p>
                 </div>
 
                 {/* Password Change */}
-                <div className="bg-white dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-slate-800 p-6">
-                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                    <Key size={20} />
-                    Şifre Değiştir
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="flex flex-col gap-2">
-                      <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Mevcut Şifre</label>
-                      <div className="relative">
-                        <input
-                          type={showCurrentPassword ? 'text' : 'password'}
-                          value={currentPassword}
-                          onChange={(e) => setCurrentPassword(e.target.value)}
-                          className="w-full h-11 px-4 pr-12 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                        >
-                          {showCurrentPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                        </button>
-                      </div>
-                    </div>
-                    <div className="flex flex-col gap-2">
-                      <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Yeni Şifre</label>
-                      <div className="relative">
-                        <input
-                          type={showNewPassword ? 'text' : 'password'}
-                          value={newPassword}
-                          onChange={(e) => setNewPassword(e.target.value)}
-                          className="w-full h-11 px-4 pr-12 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowNewPassword(!showNewPassword)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                        >
-                          {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                        </button>
-                      </div>
-                    </div>
-                    <div className="flex flex-col gap-2">
-                      <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Yeni Şifre (Tekrar)</label>
-                      <input
-                        type="password"
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        className="h-11 px-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                <SettingsCard icon={Lock} iconColor="blue" title="Şifre Değiştir" description="Hesap şifrenizi güncelleyin">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <FormInput
+                      label="Mevcut Şifre"
+                      icon={Key}
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      placeholder="••••••••"
+                      showToggle
+                      onToggle={() => setShowCurrentPassword(!showCurrentPassword)}
+                      isVisible={showCurrentPassword}
+                    />
+                    <div className="space-y-2">
+                      <FormInput
+                        label="Yeni Şifre"
+                        icon={Key}
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        placeholder="••••••••"
+                        showToggle
+                        onToggle={() => setShowNewPassword(!showNewPassword)}
+                        isVisible={showNewPassword}
                       />
+                      {passwordStrength && (
+                        <div className="space-y-1.5">
+                          <div className="flex gap-1">
+                            {[1, 2, 3, 4].map((level) => (
+                              <div
+                                key={level}
+                                className={cn(
+                                  "h-1 flex-1 rounded-full transition-colors",
+                                  passwordStrength.level >= level
+                                    ? level === 1 ? "bg-red-500"
+                                      : level === 2 ? "bg-orange-500"
+                                      : level === 3 ? "bg-yellow-500"
+                                      : "bg-green-500"
+                                    : "bg-slate-200 dark:bg-slate-700"
+                                )}
+                              />
+                            ))}
+                          </div>
+                          <p className={cn(
+                            "text-xs font-medium",
+                            passwordStrength.color === 'red' && "text-red-500",
+                            passwordStrength.color === 'orange' && "text-orange-500",
+                            passwordStrength.color === 'yellow' && "text-yellow-500",
+                            passwordStrength.color === 'green' && "text-green-500"
+                          )}>
+                            {passwordStrength.text}
+                          </p>
+                        </div>
+                      )}
                     </div>
+                    <FormInput
+                      label="Yeni Şifre (Tekrar)"
+                      icon={CheckCircle}
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="••••••••"
+                      error={confirmPassword && newPassword !== confirmPassword ? 'Şifreler eşleşmiyor' : undefined}
+                      success={!!confirmPassword && newPassword === confirmPassword}
+                    />
                   </div>
-                  <button
-                    onClick={handleChangePassword}
-                    disabled={isLoading || !currentPassword || !newPassword || !confirmPassword}
-                    className="mt-4 px-6 py-2.5 rounded-lg bg-primary text-white font-medium hover:bg-blue-600 disabled:opacity-50 flex items-center gap-2"
-                  >
-                    {isLoading && <Loader2 size={18} className="animate-spin" />}
-                    Şifreyi Değiştir
-                  </button>
-                </div>
+
+                  <div className="mt-6 pt-6 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+                    <button
+                      onClick={handleChangePassword}
+                      disabled={isLoading || !currentPassword || !newPassword || !confirmPassword || newPassword !== confirmPassword}
+                      className="px-6 py-2.5 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-medium transition-all disabled:opacity-50 flex items-center gap-2"
+                    >
+                      {isLoading ? <Loader2 size={18} className="animate-spin" /> : <Lock size={18} />}
+                      Şifreyi Güncelle
+                    </button>
+                  </div>
+                </SettingsCard>
 
                 {/* Two-Factor Authentication */}
-                <div className="bg-white dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-slate-800 p-6">
-                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                    <Shield size={20} />
-                    İki Faktörlü Doğrulama (2FA)
-                  </h3>
-
+                <SettingsCard icon={Shield} iconColor="green" title="İki Faktörlü Doğrulama (2FA)" description="Hesabınızı ekstra güvenlik ile koruyun">
                   {securityStatus ? (
-                    <div className="flex flex-col gap-4">
-                      <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                        <div className="flex items-center gap-3">
-                          <div className={cn(
-                            "w-10 h-10 rounded-full flex items-center justify-center",
-                            securityStatus.twoFactorEnabled ? "bg-green-100 text-green-600" : "bg-slate-200 text-slate-500"
-                          )}>
-                            {securityStatus.twoFactorType === 'TOTP' ? <Smartphone size={20} /> : <Mail size={20} />}
-                          </div>
-                          <div>
-                            <p className="font-medium">
+                    <div className={cn(
+                      "p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-4",
+                      securityStatus.twoFactorEnabled 
+                        ? "bg-green-50 dark:bg-green-900/10 border-green-200 dark:border-green-800"
+                        : "bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700"
+                    )}>
+                      <div className="flex items-center gap-4">
+                        <div className={cn(
+                          "w-11 h-11 rounded-xl flex items-center justify-center",
+                          securityStatus.twoFactorEnabled 
+                            ? "bg-green-100 dark:bg-green-900/30 text-green-600" 
+                            : "bg-slate-200 dark:bg-slate-700 text-slate-500"
+                        )}>
+                          {securityStatus.twoFactorType === 'TOTP' ? <Smartphone size={22} /> : <Mail size={22} />}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-slate-900 dark:text-white">
                               {securityStatus.twoFactorEnabled 
                                 ? (securityStatus.twoFactorType === 'TOTP' ? 'Google Authenticator' : 'E-posta OTP')
-                                : 'İki faktörlü doğrulama kapalı'
+                                : '2FA Kapalı'
                               }
-                            </p>
-                            <p className="text-sm text-slate-500">
-                              {securityStatus.twoFactorEnabled 
-                                ? `${securityStatus.recoveryCodesLeft} kurtarma kodu kaldı`
-                                : 'Hesabınızı daha güvenli hale getirin'
-                              }
-                            </p>
+                            </span>
+                            {securityStatus.twoFactorEnabled && (
+                              <span className="px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs font-bold">
+                                AKTİF
+                              </span>
+                            )}
                           </div>
+                          <p className="text-sm text-slate-500 mt-0.5">
+                            {securityStatus.twoFactorEnabled 
+                              ? `${securityStatus.recoveryCodesLeft} kurtarma kodu mevcut`
+                              : 'Hesabınızı daha güvenli hale getirin'
+                            }
+                          </p>
                         </div>
-                        {securityStatus.twoFactorEnabled ? (
-                          <div className="flex gap-2">
-                            <button
-                              onClick={handleRegenerateCodes}
-                              className="px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2"
-                            >
-                              <RefreshCw size={16} />
-                              Kodları Yenile
-                            </button>
-                            <button
-                              onClick={() => setShowDisableModal(true)}
-                              className="px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-medium hover:bg-red-600 flex items-center gap-2"
-                            >
-                              <Trash2 size={16} />
-                              Kapat
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={handleSetupTOTP}
-                            disabled={isLoading}
-                            className="px-4 py-2 rounded-lg bg-primary text-white text-sm font-medium hover:bg-blue-600 disabled:opacity-50 flex items-center gap-2"
-                          >
-                            {isLoading ? <Loader2 size={16} className="animate-spin" /> : <Shield size={16} />}
-                            Etkinleştir
-                          </button>
-                        )}
                       </div>
+
+                      {securityStatus.twoFactorEnabled ? (
+                        <div className="flex gap-2">
+                          <button
+                            onClick={handleRegenerateCodes}
+                            className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-800 transition-all flex items-center gap-2"
+                          >
+                            <RefreshCw size={16} />
+                            <span className="hidden sm:inline">Kodları Yenile</span>
+                          </button>
+                          <button
+                            onClick={() => setShowDisableModal(true)}
+                            className="px-4 py-2 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-medium transition-all flex items-center gap-2"
+                          >
+                            <Trash2 size={16} />
+                            <span className="hidden sm:inline">Kapat</span>
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={handleSetupTOTP}
+                          disabled={isLoading}
+                          className="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-medium transition-all disabled:opacity-50 flex items-center gap-2"
+                        >
+                          {isLoading ? <Loader2 size={18} className="animate-spin" /> : <Shield size={18} />}
+                          Etkinleştir
+                        </button>
+                      )}
                     </div>
                   ) : (
                     <div className="flex items-center justify-center py-8">
                       <Loader2 size={24} className="animate-spin text-slate-400" />
                     </div>
                   )}
-                </div>
+                </SettingsCard>
 
                 {/* Trusted Devices */}
-                <div className="bg-white dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-slate-800 p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold flex items-center gap-2">
-                      <Monitor size={20} />
-                      Güvenilir Cihazlar
-                    </h3>
-                    {trustedDevices.length > 0 && (
+                <SettingsCard icon={Monitor} iconColor="purple" title="Güvenilir Cihazlar" description="30 gün boyunca 2FA sorulmaz">
+                  {trustedDevices.length > 0 && (
+                    <div className="flex justify-end mb-4 -mt-2">
                       <button
                         onClick={handleRevokeAllTrustedDevices}
                         disabled={isLoading}
-                        className="px-3 py-1.5 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-1.5"
+                        className="text-sm font-medium text-red-500 hover:text-red-600 flex items-center gap-1.5"
                       >
                         <Trash2 size={14} />
                         Tümünü Kaldır
                       </button>
-                    )}
-                  </div>
-
-                  <p className="text-sm text-slate-500 mb-4">
-                    Bu cihazlarda 30 gün boyunca 2FA kodu sorulmaz. Şüpheli bir cihaz görürseniz hemen kaldırın.
-                  </p>
+                    </div>
+                  )}
 
                   {isLoadingDevices ? (
-                    <div className="flex items-center justify-center py-8">
+                    <div className="flex items-center justify-center py-10">
                       <Loader2 size={24} className="animate-spin text-slate-400" />
                     </div>
                   ) : trustedDevices.length === 0 ? (
-                    <div className="text-center py-8 text-slate-500">
-                      <Monitor size={40} className="mx-auto mb-3 opacity-30" />
-                      <p>Henüz güvenilir cihaz yok</p>
-                      <p className="text-sm mt-1">Giriş yaparken "Bu cihazı hatırla" seçeneğini işaretleyin</p>
+                    <div className="text-center py-10">
+                      <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                        <Monitor size={28} className="text-slate-400" />
+                      </div>
+                      <p className="font-medium text-slate-700 dark:text-slate-300">Henüz güvenilir cihaz yok</p>
+                      <p className="text-sm text-slate-500 mt-1">Giriş yaparken "Bu cihazı hatırla" seçeneğini işaretleyin</p>
                     </div>
                   ) : (
-                    <div className="flex flex-col gap-3">
+                    <div className="space-y-3">
                       {trustedDevices.map((device) => (
                         <div
                           key={device.id}
                           className={cn(
-                            "flex items-center justify-between p-4 rounded-lg border",
+                            "flex items-center justify-between p-4 rounded-xl border transition-all",
                             device.isCurrent 
-                              ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800"
-                              : "bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700"
+                              ? "bg-violet-50 dark:bg-violet-900/10 border-violet-200 dark:border-violet-800"
+                              : "bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700"
                           )}
                         >
                           <div className="flex items-center gap-4">
                             <div className={cn(
-                              "w-10 h-10 rounded-full flex items-center justify-center",
-                              device.platform === 'WEB' ? "bg-blue-100 text-blue-600" :
-                              device.platform === 'ANDROID' ? "bg-green-100 text-green-600" :
-                              "bg-slate-100 text-slate-600"
+                              "w-10 h-10 rounded-xl flex items-center justify-center",
+                              device.platform === 'WEB' 
+                                ? "bg-blue-100 dark:bg-blue-900/30 text-blue-600" 
+                                : "bg-green-100 dark:bg-green-900/30 text-green-600"
                             )}>
                               {device.platform === 'WEB' ? <Monitor size={20} /> : <Smartphone size={20} />}
                             </div>
                             <div>
                               <div className="flex items-center gap-2">
-                                <p className="font-medium">{device.deviceName}</p>
+                                <span className="font-medium text-slate-900 dark:text-white">{device.deviceName}</span>
                                 {device.isCurrent && (
-                                  <span className="px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-xs font-medium">
+                                  <span className="px-2 py-0.5 rounded-full bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-400 text-xs font-bold">
                                     Bu Cihaz
                                   </span>
                                 )}
                               </div>
-                              <div className="flex items-center gap-3 text-sm text-slate-500 mt-1">
-                                {device.lastCity && device.lastCountry && (
+                              <div className="flex items-center gap-3 text-sm text-slate-500 mt-0.5">
+                                {device.lastCity && (
                                   <span className="flex items-center gap-1">
                                     <Globe size={12} />
                                     {device.lastCity}, {device.lastCountry}
@@ -641,8 +768,7 @@ export default function SettingsPage() {
                           <button
                             onClick={() => handleRevokeTrustedDevice(device.id)}
                             disabled={isLoading}
-                            className="p-2 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                            title="Cihazı kaldır"
+                            className="p-2 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
                           >
                             <X size={18} />
                           </button>
@@ -650,73 +776,63 @@ export default function SettingsPage() {
                       ))}
                     </div>
                   )}
-                </div>
-              </div>
+                </SettingsCard>
+              </>
             )}
 
             {/* Notifications Tab */}
             {activeTab === 'notifications' && (
-              <div className="flex flex-col gap-6">
+              <>
                 <div>
                   <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Bildirimler</h2>
                   <p className="text-slate-500 mt-1">Bildirim tercihlerinizi yönetin</p>
                 </div>
 
-                <div className="bg-white dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-slate-800 p-6">
-                  <div className="flex flex-col gap-4">
-                    <NotificationToggle
-                      title="Push Bildirimleri"
-                      description="Tarayıcı üzerinden anlık bildirimler"
-                      defaultChecked={true}
-                    />
-                    <NotificationToggle
-                      title="E-posta Bildirimleri"
-                      description="Önemli güncellemeler için e-posta"
-                      defaultChecked={true}
-                    />
-                    <NotificationToggle
-                      title="Cihaz Uyarıları"
-                      description="Cihaz çevrimdışı olduğunda bildirim"
-                      defaultChecked={true}
-                    />
-                    <NotificationToggle
-                      title="Güvenlik Uyarıları"
-                      description="Yeni giriş ve güvenlik olayları"
-                      defaultChecked={true}
-                    />
+                <SettingsCard icon={Bell} iconColor="amber" title="Bildirim Ayarları" description="Hangi bildirimleri almak istediğinizi seçin">
+                  <div className="space-y-1">
+                    <NotificationToggle title="Push Bildirimleri" description="Tarayıcı üzerinden anlık bildirimler" defaultChecked={true} />
+                    <NotificationToggle title="E-posta Bildirimleri" description="Önemli güncellemeler için e-posta" defaultChecked={true} />
+                    <NotificationToggle title="Cihaz Uyarıları" description="Cihaz çevrimdışı olduğunda bildirim" defaultChecked={true} />
+                    <NotificationToggle title="Güvenlik Uyarıları" description="Yeni giriş ve güvenlik olayları" defaultChecked={true} />
                   </div>
-                </div>
-              </div>
+                </SettingsCard>
+              </>
             )}
 
             {/* Preferences Tab */}
             {activeTab === 'preferences' && (
-              <div className="flex flex-col gap-6">
+              <>
                 <div>
                   <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Tercihler</h2>
                   <p className="text-slate-500 mt-1">Dil ve bölgesel ayarlar</p>
                 </div>
 
-                <div className="bg-white dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-slate-800 p-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="flex flex-col gap-2">
-                      <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Dil</label>
+                <SettingsCard icon={Settings2} iconColor="blue" title="Bölgesel Ayarlar" description="Dil ve saat dilimi tercihleri">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
+                        <Globe size={14} className="text-slate-400" />
+                        Dil
+                      </label>
                       <select
                         value={language}
                         onChange={(e) => setLanguage(e.target.value)}
-                        className="h-11 px-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                        className="w-full h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
                       >
                         <option value="tr">Türkçe</option>
                         <option value="en">English</option>
                         <option value="de">Deutsch</option>
                       </select>
                     </div>
-                    <div className="flex flex-col gap-2">
-                      <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Saat Dilimi</label>
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
+                        <Clock size={14} className="text-slate-400" />
+                        Saat Dilimi
+                      </label>
                       <select
                         value={timezone}
                         onChange={(e) => setTimezone(e.target.value)}
-                        className="h-11 px-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                        className="w-full h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
                       >
                         <option value="Europe/Istanbul">İstanbul (GMT+3)</option>
                         <option value="Europe/Berlin">Berlin (GMT+1)</option>
@@ -725,19 +841,19 @@ export default function SettingsPage() {
                       </select>
                     </div>
                   </div>
-                </div>
 
-                <div className="flex justify-end gap-3">
-                  <button
-                    onClick={handleSaveProfile}
-                    disabled={isLoading}
-                    className="px-6 py-2.5 rounded-lg bg-primary text-white font-medium hover:bg-blue-600 disabled:opacity-50 flex items-center gap-2"
-                  >
-                    {isLoading && <Loader2 size={18} className="animate-spin" />}
-                    Kaydet
-                  </button>
-                </div>
-              </div>
+                  <div className="mt-6 pt-6 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+                    <button
+                      onClick={handleSaveProfile}
+                      disabled={isLoading}
+                      className="px-6 py-2.5 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-medium transition-all disabled:opacity-50 flex items-center gap-2"
+                    >
+                      {isLoading && <Loader2 size={18} className="animate-spin" />}
+                      Kaydet
+                    </button>
+                  </div>
+                </SettingsCard>
+              </>
             )}
           </div>
         </main>
@@ -745,13 +861,13 @@ export default function SettingsPage() {
 
       {/* TOTP Setup Modal */}
       {showTotpSetup && totpSetupData && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
-            <h3 className="text-xl font-bold mb-4">Google Authenticator Kurulumu</h3>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md p-6 shadow-2xl">
+            <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-1">Google Authenticator Kurulumu</h3>
+            <p className="text-sm text-slate-500 mb-6">QR kodu uygulamanızla tarayın</p>
             
-            {/* QR Code */}
             <div className="flex flex-col items-center gap-4 mb-6">
-              <div className="bg-white p-4 rounded-xl">
+              <div className="bg-white p-4 rounded-xl border border-slate-200">
                 <img 
                   src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(totpSetupData.qrCodeUrl)}`}
                   alt="QR Code"
@@ -761,21 +877,19 @@ export default function SettingsPage() {
               
               <button
                 onClick={() => setShowManualEntry(!showManualEntry)}
-                className="text-sm text-primary hover:underline"
+                className="text-sm text-blue-500 hover:text-blue-600 font-medium"
               >
-                {showManualEntry ? 'QR Kodu göster' : 'Kodu tarayamıyor musunuz? Manuel girin'}
+                {showManualEntry ? 'QR kodu göster' : 'Manuel giriş yap'}
               </button>
 
               {showManualEntry && (
-                <div className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                  <p className="text-xs text-slate-500 mb-2">Manuel giriş için bu kodu kullanın:</p>
+                <div className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-xl">
+                  <p className="text-xs text-slate-500 mb-2">Manuel giriş kodu:</p>
                   <div className="flex items-center gap-2">
-                    <code className="flex-1 text-sm font-mono tracking-widest break-all">
-                      {totpSetupData.secret}
-                    </code>
+                    <code className="flex-1 text-sm font-mono tracking-wider break-all">{totpSetupData.secret}</code>
                     <button
-                      onClick={() => copyToClipboard(totpSetupData.secret.replace(/\s/g, ''))}
-                      className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded"
+                      onClick={() => copyToClipboard(totpSetupData.secret)}
+                      className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors"
                     >
                       <Copy size={16} />
                     </button>
@@ -784,34 +898,30 @@ export default function SettingsPage() {
               )}
             </div>
 
-            {/* Verification */}
-            <div className="flex flex-col gap-4">
-              <div className="flex flex-col gap-2">
-                <label className="text-sm font-medium">6 Haneli Doğrulama Kodu</label>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">6 Haneli Doğrulama Kodu</label>
                 <input
                   type="text"
                   value={totpCode}
                   onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                   placeholder="000000"
                   maxLength={6}
-                  className="h-12 px-4 text-center text-2xl font-mono tracking-widest rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                  className="w-full h-12 px-4 text-center text-2xl font-mono tracking-[0.5em] rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
                 />
               </div>
 
               <div className="flex gap-3">
                 <button
-                  onClick={() => {
-                    setShowTotpSetup(false);
-                    setTotpCode('');
-                  }}
-                  className="flex-1 px-4 py-3 rounded-lg border border-slate-200 dark:border-slate-700 font-medium hover:bg-slate-50 dark:hover:bg-slate-800"
+                  onClick={() => { setShowTotpSetup(false); setTotpCode(''); }}
+                  className="flex-1 px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
                 >
                   İptal
                 </button>
                 <button
                   onClick={handleVerifyTOTP}
                   disabled={isLoading || totpCode.length !== 6}
-                  className="flex-1 px-4 py-3 rounded-lg bg-primary text-white font-medium hover:bg-blue-600 disabled:opacity-50 flex items-center justify-center gap-2"
+                  className="flex-1 px-4 py-3 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-medium disabled:opacity-50 flex items-center justify-center gap-2 transition-colors"
                 >
                   {isLoading && <Loader2 size={18} className="animate-spin" />}
                   Doğrula
@@ -824,23 +934,21 @@ export default function SettingsPage() {
 
       {/* Recovery Codes Modal */}
       {showRecoveryCodes && recoveryCodes.length > 0 && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md p-6 shadow-2xl">
             <div className="flex items-start gap-3 mb-4">
-              <div className="p-2 bg-yellow-100 text-yellow-600 rounded-lg">
+              <div className="p-2.5 bg-amber-100 dark:bg-amber-900/30 text-amber-600 rounded-xl">
                 <AlertTriangle size={24} />
               </div>
               <div>
-                <h3 className="text-xl font-bold">Kurtarma Kodlarınızı Kaydedin!</h3>
-                <p className="text-sm text-slate-500 mt-1">
-                  Bu kodlar sadece bir kez gösterilir. Telefonunuzu kaybederseniz bu kodlarla giriş yapabilirsiniz.
-                </p>
+                <h3 className="text-xl font-bold text-slate-900 dark:text-white">Kurtarma Kodları</h3>
+                <p className="text-sm text-slate-500 mt-1">Bu kodları güvenli bir yerde saklayın. Her kod sadece bir kez kullanılabilir.</p>
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-2 my-4">
               {recoveryCodes.map((code, i) => (
-                <div key={i} className="px-3 py-2 bg-slate-100 dark:bg-slate-800 rounded text-center font-mono text-sm">
+                <div key={i} className="px-3 py-2 bg-slate-100 dark:bg-slate-800 rounded-lg text-center font-mono text-sm">
                   {code}
                 </div>
               ))}
@@ -849,39 +957,36 @@ export default function SettingsPage() {
             <div className="flex gap-2 mb-4">
               <button
                 onClick={downloadRecoveryCodes}
-                className="flex-1 px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 font-medium hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center justify-center gap-2"
+                className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center justify-center gap-2"
               >
                 <Download size={16} />
-                İndir (.txt)
+                İndir
               </button>
               <button
                 onClick={() => copyToClipboard(recoveryCodes.join('\n'))}
-                className="flex-1 px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 font-medium hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center justify-center gap-2"
+                className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center justify-center gap-2"
               >
                 <Copy size={16} />
                 Kopyala
               </button>
             </div>
 
-            <div className="flex items-center gap-2 mb-4">
+            <label className="flex items-center gap-2 mb-4 cursor-pointer">
               <input
                 type="checkbox"
-                id="confirmCodes"
                 checked={hasConfirmedCodes}
                 onChange={(e) => setHasConfirmedCodes(e.target.checked)}
-                className="w-4 h-4 rounded border-slate-300"
+                className="w-4 h-4 rounded border-slate-300 text-blue-500 focus:ring-blue-500/20"
               />
-              <label htmlFor="confirmCodes" className="text-sm">
-                Kodları güvenli bir yere kaydettim
-              </label>
-            </div>
+              <span className="text-sm text-slate-700 dark:text-slate-300">Kodları güvenli bir yere kaydettim</span>
+            </label>
 
             <button
               onClick={() => setShowRecoveryCodes(false)}
               disabled={!hasDownloadedCodes && !hasConfirmedCodes}
-              className="w-full px-4 py-3 rounded-lg bg-primary text-white font-medium hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full px-4 py-3 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              Devam Et
+              Tamam
             </button>
           </div>
         </div>
@@ -889,33 +994,30 @@ export default function SettingsPage() {
 
       {/* Disable 2FA Modal */}
       {showDisableModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-sm p-6">
-            <h3 className="text-xl font-bold mb-4">2FA'yı Kapat</h3>
-            <p className="text-sm text-slate-500 mb-4">
-              İki faktörlü doğrulamayı kapatmak için şifrenizi girin.
-            </p>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-sm p-6 shadow-2xl">
+            <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-1">2FA'yı Kapat</h3>
+            <p className="text-sm text-slate-500 mb-4">Bu işlemi onaylamak için şifrenizi girin.</p>
+            
             <input
               type="password"
               value={disablePassword}
               onChange={(e) => setDisablePassword(e.target.value)}
               placeholder="Şifreniz"
-              className="w-full h-11 px-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-primary focus:border-transparent outline-none mb-4"
+              className="w-full h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 mb-4"
             />
+            
             <div className="flex gap-3">
               <button
-                onClick={() => {
-                  setShowDisableModal(false);
-                  setDisablePassword('');
-                }}
-                className="flex-1 px-4 py-3 rounded-lg border border-slate-200 dark:border-slate-700 font-medium hover:bg-slate-50 dark:hover:bg-slate-800"
+                onClick={() => { setShowDisableModal(false); setDisablePassword(''); }}
+                className="flex-1 px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
               >
                 İptal
               </button>
               <button
                 onClick={handleDisableTOTP}
                 disabled={isLoading || !disablePassword}
-                className="flex-1 px-4 py-3 rounded-lg bg-red-500 text-white font-medium hover:bg-red-600 disabled:opacity-50 flex items-center justify-center gap-2"
+                className="flex-1 px-4 py-3 rounded-xl bg-red-500 hover:bg-red-600 text-white font-medium disabled:opacity-50 flex items-center justify-center gap-2 transition-colors"
               >
                 {isLoading && <Loader2 size={18} className="animate-spin" />}
                 Kapat
@@ -932,23 +1034,24 @@ function NotificationToggle({ title, description, defaultChecked }: { title: str
   const [checked, setChecked] = useState(defaultChecked);
 
   return (
-    <div className="flex items-center justify-between py-3 border-b border-slate-100 dark:border-slate-800 last:border-0">
+    <div className="flex items-center justify-between py-4 border-b border-slate-100 dark:border-slate-800 last:border-0">
       <div>
-        <p className="font-medium">{title}</p>
+        <p className="font-medium text-slate-900 dark:text-white">{title}</p>
         <p className="text-sm text-slate-500">{description}</p>
       </div>
       <button
         onClick={() => setChecked(!checked)}
         className={cn(
-          "w-12 h-6 rounded-full transition-colors relative",
-          checked ? "bg-primary" : "bg-slate-300"
+          "w-11 h-6 rounded-full transition-colors relative",
+          checked ? "bg-blue-500" : "bg-slate-300 dark:bg-slate-600"
         )}
       >
         <span
           className={cn(
-            "absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform",
-            checked ? "translate-x-6" : "translate-x-0.5"
+            "absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform",
+            checked ? "translate-x-5.5 left-0.5" : "left-0.5"
           )}
+          style={{ transform: checked ? 'translateX(22px)' : 'translateX(0)' }}
         />
       </button>
     </div>

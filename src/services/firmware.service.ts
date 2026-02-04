@@ -104,7 +104,7 @@ class FirmwareService {
     if (data.releaseNote) formData.append('releaseNote', data.releaseNote);
     if (data.isBeta !== undefined) formData.append('isBeta', data.isBeta.toString());
 
-    const response = await api.post('/api/v1/admin/firmware/upload', formData, {
+    const response = await api.post('/admin/firmware/upload', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
@@ -125,21 +125,21 @@ class FirmwareService {
     if (filters?.isActive !== undefined) params.append('isActive', filters.isActive.toString());
     if (filters?.isBeta !== undefined) params.append('isBeta', filters.isBeta.toString());
 
-    const response = await api.get(`/api/v1/admin/firmware/versions?${params.toString()}`);
+    const response = await api.get(`/admin/firmware/versions?${params.toString()}`);
     return response.data;
   }
 
   async getFirmware(firmwareId: string): Promise<FirmwareVersion> {
-    const response = await api.get(`/api/v1/admin/firmware/versions/${firmwareId}`);
+    const response = await api.get(`/admin/firmware/versions/${firmwareId}`);
     return response.data;
   }
 
   async toggleFirmwareActive(firmwareId: string, isActive: boolean): Promise<void> {
-    await api.patch(`/api/v1/admin/firmware/versions/${firmwareId}/toggle`, { isActive });
+    await api.patch(`/admin/firmware/versions/${firmwareId}/toggle`, { isActive });
   }
 
   async deleteFirmware(firmwareId: string): Promise<void> {
-    await api.delete(`/api/v1/admin/firmware/versions/${firmwareId}`);
+    await api.delete(`/admin/firmware/versions/${firmwareId}`);
   }
 
   // Rollouts
@@ -148,7 +148,7 @@ class FirmwareService {
     deviceType: string;
     targetPercentage?: number;
   }): Promise<FirmwareRollout> {
-    const response = await api.post('/api/v1/admin/firmware/rollouts', data);
+    const response = await api.post('/admin/firmware/rollouts', data);
     return response.data;
   }
 
@@ -163,21 +163,21 @@ class FirmwareService {
     if (filters?.deviceType) params.append('deviceType', filters.deviceType);
     if (filters?.status) params.append('status', filters.status);
 
-    const response = await api.get(`/api/v1/admin/firmware/rollouts?${params.toString()}`);
+    const response = await api.get(`/admin/firmware/rollouts?${params.toString()}`);
     return response.data;
   }
 
   async getRollout(rolloutId: string): Promise<FirmwareRollout> {
-    const response = await api.get(`/api/v1/admin/firmware/rollouts/${rolloutId}`);
+    const response = await api.get(`/admin/firmware/rollouts/${rolloutId}`);
     return response.data;
   }
 
   async startRollout(rolloutId: string): Promise<void> {
-    await api.post(`/api/v1/admin/firmware/rollouts/${rolloutId}/start`);
+    await api.post(`/admin/firmware/rollouts/${rolloutId}/start`);
   }
 
   async updateRolloutStatus(rolloutId: string, status: RolloutStatus): Promise<void> {
-    await api.patch(`/api/v1/admin/firmware/rollouts/${rolloutId}/status`, { status });
+    await api.patch(`/admin/firmware/rollouts/${rolloutId}/status`, { status });
   }
 
   async getRolloutDevices(rolloutId: string, page = 1, limit = 20): Promise<{
@@ -187,14 +187,14 @@ class FirmwareService {
     totalPages: number;
   }> {
     const response = await api.get(
-      `/api/v1/admin/firmware/rollouts/${rolloutId}/devices?page=${page}&limit=${limit}`
+      `/admin/firmware/rollouts/${rolloutId}/devices?page=${page}&limit=${limit}`
     );
     return response.data;
   }
 
   // Device Status
   async getDeviceUpdateStatus(deviceId: string): Promise<DeviceUpdateStatus> {
-    const response = await api.get(`/api/v1/admin/firmware/status/${deviceId}`);
+    const response = await api.get(`/admin/firmware/status/${deviceId}`);
     return response.data;
   }
 
@@ -207,7 +207,7 @@ class FirmwareService {
    * Devices call this endpoint to check if a newer version is available
    */
   async checkForUpdate(input: CheckUpdateInput): Promise<CheckUpdateResponse> {
-    const response = await api.post('/api/v1/firmware/check-update', input);
+    const response = await api.post('/firmware/check-update', input);
     return response.data;
   }
 
@@ -216,7 +216,7 @@ class FirmwareService {
    * Devices call this endpoint to report their update progress
    */
   async reportUpdateStatus(input: ReportUpdateStatusInput): Promise<void> {
-    await api.post('/api/v1/firmware/report-status', input);
+    await api.post('/firmware/report-status', input);
   }
 
   /**
@@ -227,7 +227,7 @@ class FirmwareService {
     params.append('deviceType', deviceType);
     if (includeBeta) params.append('includeBeta', 'true');
     
-    const response = await api.get(`/api/v1/firmware/latest?${params.toString()}`);
+    const response = await api.get(`/firmware/latest?${params.toString()}`);
     return response.data;
   }
 
@@ -235,7 +235,7 @@ class FirmwareService {
    * Get firmware download URL
    */
   getDownloadUrl(firmwareId: string): string {
-    return `${api.defaults.baseURL}/api/v1/firmware/download/${firmwareId}`;
+    return `${api.defaults.baseURL}/firmware/download/${firmwareId}`;
   }
 }
 

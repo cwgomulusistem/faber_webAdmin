@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, Thermometer, Droplets, MapPin, Search, Bell } from 'lucide-react';
 import { cn, getActiveHomeId } from '@/lib/utils';
@@ -14,8 +14,14 @@ export default function RoomsPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const { isConnected } = useSocket();
+  
+  // Prevent double fetching in React StrictMode
+  const hasFetchedRef = useRef(false);
 
   useEffect(() => {
+    if (hasFetchedRef.current) return;
+    hasFetchedRef.current = true;
+
     const fetchData = async () => {
       try {
         const homeId = getActiveHomeId();

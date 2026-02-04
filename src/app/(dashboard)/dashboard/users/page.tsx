@@ -3,7 +3,7 @@
 // Users Page
 // Manage system users
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { UserPlus, Search, Loader2 } from 'lucide-react';
 import { userService } from '../../../../services/user.service';
 import type { User, AdminUser } from '../../../../types/auth.types';
@@ -13,8 +13,13 @@ export default function UsersPage() {
   const [users, setUsers] = useState<(User | AdminUser)[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // Prevent double fetching in React StrictMode
+  const hasFetchedRef = useRef(false);
 
   useEffect(() => {
+    if (hasFetchedRef.current) return;
+    hasFetchedRef.current = true;
     loadUsers();
   }, []);
 

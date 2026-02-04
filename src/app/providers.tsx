@@ -4,6 +4,7 @@
 
 import { AuthProvider } from '../contexts/AuthContext';
 import { HomeProvider } from '../contexts/HomeContext';
+import { DeviceProvider } from '../contexts/DeviceContext';
 import { SocketProvider } from '../contexts/SocketContext';
 import { EntityProvider } from '../contexts/entity.context';
 import { PermissionProvider } from '../contexts/PermissionContext';
@@ -15,14 +16,16 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <AuthProvider>
       <PreAuthGuard>
         <HomeProvider>
-          <SocketProvider>
-            <PermissionProvider>
-              <EntityProvider>
-                {children}
-                <Toaster position="top-right" richColors />
-              </EntityProvider>
-            </PermissionProvider>
-          </SocketProvider>
+          <DeviceProvider>
+            <SocketProvider>
+              <PermissionProvider>
+                <EntityProvider>
+                  {children}
+                  <Toaster position="top-right" richColors />
+                </EntityProvider>
+              </PermissionProvider>
+            </SocketProvider>
+          </DeviceProvider>
         </HomeProvider>
       </PreAuthGuard>
     </AuthProvider>

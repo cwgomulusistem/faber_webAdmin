@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Search, Plus, ListFilter, LayoutGrid, MoreVertical, Lightbulb, Lock, Thermometer, Router, BatteryWarning, Bell } from 'lucide-react';
 import { cn, getActiveHomeId } from '@/lib/utils';
@@ -14,11 +14,17 @@ export default function DevicesPage() {
     router.back();
   };
 
-  const [devices, setDevices] = React.useState<any[]>([]);
-  const [loading, setLoading] = React.useState(true);
-  const [searchTerm, setSearchTerm] = React.useState('');
+  const [devices, setDevices] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  
+  // Prevent double fetching in React StrictMode
+  const hasFetchedRef = useRef(false);
 
-  React.useEffect(() => {
+  useEffect(() => {
+    if (hasFetchedRef.current) return;
+    hasFetchedRef.current = true;
+
     const fetchDevices = async () => {
       try {
         const homeId = getActiveHomeId();

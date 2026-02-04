@@ -82,7 +82,7 @@ export interface AuditLog {
 class AdminService {
   // Dashboard
   async getStats(): Promise<AdminStats> {
-    const response = await api.get('/api/v1/admin/stats');
+    const response = await api.get('/admin/stats');
     return response.data;
   }
 
@@ -102,25 +102,25 @@ class AdminService {
     if (filters?.isBanned !== undefined) params.append('isBanned', filters.isBanned.toString());
     if (filters?.search) params.append('search', filters.search);
 
-    const response = await api.get(`/api/v1/admin/devices?${params.toString()}`);
+    const response = await api.get(`/admin/devices?${params.toString()}`);
     return response.data;
   }
 
   async getDevice(deviceId: string): Promise<AdminDevice> {
-    const response = await api.get(`/api/v1/admin/devices/${deviceId}`);
+    const response = await api.get(`/admin/devices/${deviceId}`);
     return response.data;
   }
 
   async banDevice(deviceId: string, banned: boolean, reason?: string): Promise<void> {
-    await api.patch(`/api/v1/admin/devices/${deviceId}/ban`, { banned, reason });
+    await api.patch(`/admin/devices/${deviceId}/ban`, { banned, reason });
   }
 
   async controlDevice(deviceId: string, action: Record<string, any>): Promise<void> {
-    await api.post(`/api/v1/admin/devices/${deviceId}/control`, { action });
+    await api.post(`/admin/devices/${deviceId}/control`, { action });
   }
 
   async deleteDevice(deviceId: string): Promise<void> {
-    await api.delete(`/api/v1/admin/devices/${deviceId}`);
+    await api.delete(`/admin/devices/${deviceId}`);
   }
 
   // Users
@@ -135,48 +135,57 @@ class AdminService {
     if (filters?.isActive !== undefined) params.append('isActive', filters.isActive.toString());
     if (filters?.search) params.append('search', filters.search);
 
-    const response = await api.get(`/api/v1/admin/users?${params.toString()}`);
+    const response = await api.get(`/admin/users?${params.toString()}`);
     return response.data;
   }
 
   async getUser(userId: string): Promise<AdminUser> {
-    const response = await api.get(`/api/v1/admin/users/${userId}`);
+    const response = await api.get(`/admin/users/${userId}`);
     return response.data;
   }
 
   async updateUser(userId: string, data: { isActive?: boolean }): Promise<void> {
-    await api.patch(`/api/v1/admin/users/${userId}`, data);
+    await api.patch(`/admin/users/${userId}`, data);
   }
 
   async deleteUser(userId: string): Promise<void> {
-    await api.delete(`/api/v1/admin/users/${userId}`);
+    await api.delete(`/admin/users/${userId}`);
   }
 
   async resetUserPassword(userId: string): Promise<{ tempPassword: string }> {
-    const response = await api.post(`/api/v1/admin/users/${userId}/reset-password`);
+    const response = await api.post(`/admin/users/${userId}/reset-password`);
     return response.data;
   }
 
   // Homes
   async getHomes(page = 1, limit = 20): Promise<PaginatedResponse<AdminHome>> {
-    const response = await api.get(`/api/v1/admin/homes?page=${page}&limit=${limit}`);
+    const response = await api.get(`/admin/homes?page=${page}&limit=${limit}`);
     return response.data;
   }
 
   async getHome(homeId: string): Promise<AdminHome & { rooms: any[]; devices: any[]; scenes: any[] }> {
-    const response = await api.get(`/api/v1/admin/homes/${homeId}`);
+    const response = await api.get(`/admin/homes/${homeId}`);
     return response.data;
   }
 
   // Scenes
   async getScenes(homeId?: string): Promise<any[]> {
-    const url = homeId ? `/api/v1/admin/scenes?homeId=${homeId}` : '/api/v1/admin/scenes';
+    const url = homeId ? `/admin/scenes?homeId=${homeId}` : '/admin/scenes';
     const response = await api.get(url);
     return response.data;
   }
 
   async executeScene(sceneId: string): Promise<void> {
-    await api.post(`/api/v1/admin/scenes/${sceneId}/execute`);
+    await api.post(`/admin/scenes/${sceneId}/execute`);
+  }
+
+  /**
+   * Toggle scene active status
+   * Uses mobile endpoint - requires admin to have home access
+   */
+  async toggleScene(sceneId: string, isActive: boolean): Promise<any> {
+    const response = await api.patch(`/mobile/scenes/${sceneId}`, { isActive });
+    return response.data.data;
   }
 
   // Audit Logs
@@ -197,7 +206,7 @@ class AdminService {
     if (filters?.startDate) params.append('startDate', filters.startDate);
     if (filters?.endDate) params.append('endDate', filters.endDate);
 
-    const response = await api.get(`/api/v1/admin/logs?${params.toString()}`);
+    const response = await api.get(`/admin/logs?${params.toString()}`);
     return response.data;
   }
 
@@ -213,7 +222,7 @@ class AdminService {
     if (filters?.startDate) params.append('startDate', filters.startDate);
     if (filters?.endDate) params.append('endDate', filters.endDate);
 
-    const response = await api.get(`/api/v1/admin/logs/export?${params.toString()}`, {
+    const response = await api.get(`/admin/logs/export?${params.toString()}`, {
       responseType: 'blob',
     });
     return response.data;

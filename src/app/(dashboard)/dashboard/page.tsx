@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -24,11 +24,13 @@ import {
   Pencil, Check, Plus, Search, Sun, Moon, Home, Bell, User,
   ChevronDown, Settings, LayoutGrid, Wifi, WifiOff, X
 } from 'lucide-react';
-import { cn, getActiveHomeId, setActiveHomeId } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import { SectionCard } from '@/components/dashboard/SectionCard';
 import { WidgetCard } from '@/components/dashboard/WidgetCard';
 import type { Section, Widget, DashboardConfig } from '@/components/dashboard/types';
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
+import { useHome } from '@/contexts/HomeContext';
+import { useDevice } from '@/contexts/DeviceContext';
 import api from '@/services/api.service';
 import { useSocket } from '@/hooks/useSocket';
 
@@ -266,95 +268,89 @@ function DashboardContent() {
   const [addWidgetSectionId, setAddWidgetSectionId] = useState<string | null>(null);
 
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
-  const [homes, setHomes] = useState<any[]>([]);
-  const [activeHomeId, setActiveHomeIdState] = useState<string>('');
-  const [isLoading, setIsLoading] = useState(true);
+  const [roomsLoading, setRoomsLoading] = useState(true);
+  const [rooms, setRooms] = useState<any[]>([]);
 
-  // Store all devices to allow reassignment
-  const [allDevices, setAllDevices] = useState<any[]>([]);
+  // Use centralized HomeContext instead of local state
+  const { activeHome, isLoading: homesLoading } = useHome();
+  
+  // Use centralized DeviceContext for devices
+  const { devices: allDevices, isLoading: devicesLoading, refreshDevices } = useDevice();
 
   // WebSocket subscription
   const { subscribeToDevice } = useSocket();
+
+  // Track if rooms have been loaded for current home
+  const loadedRoomsHomeIdRef = useRef<string | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
+  // Combined loading state
+  const isLoading = homesLoading || devicesLoading || roomsLoading;
+
+  // Load rooms when activeHome changes
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const homesRes = await api.get('/homes');
-        const fetchedHomes = homesRes.data?.data || [];
-        setHomes(fetchedHomes);
-
-        if (fetchedHomes.length === 0) {
-          setIsLoading(false);
-          return;
-        }
-
-        let currentHomeId = getActiveHomeId();
-        const homeExists = fetchedHomes.find((h: any) => h.id === currentHomeId);
-        if (!currentHomeId || !homeExists) {
-          const defaultHomeId = String(fetchedHomes[0].id);
-          currentHomeId = defaultHomeId;
-          setActiveHomeId(defaultHomeId);
-        }
-
-        if (currentHomeId) {
-          setActiveHomeIdState(currentHomeId);
-          await loadDashboardData(currentHomeId);
-        }
-
-      } catch (err) {
-        console.error("Dashboard Load Error:", err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchData();
-  }, []);
-
-  const loadDashboardData = async (homeId: string) => {
-    setIsLoading(true);
-    try {
-      const [roomsRes, devicesRes] = await Promise.all([
-        api.get(`/homes/${homeId}/rooms`),
-        api.get(`/homes/${homeId}/devices`)
-      ]);
-
-      const rooms = roomsRes.data?.data || [];
-      const devices = devicesRes.data?.data || [];
-      setAllDevices(devices);
-
-      const newSections: Section[] = rooms.map((room: any, index: number) => {
-        const roomDevices = devices.filter((d: any) => d.roomId === room.id);
-        const colors = ['#6366f1', '#22c55e', '#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4'];
-        return {
-          id: room.id,
-          title: room.name,
-          icon: 'living_room',
-          color: colors[index % colors.length],
-          widgets: roomDevices.map((d: any) => mapDeviceToWidget(d))
-        };
-      });
-
-      const unassigned = devices.filter((d: any) => !d.roomId);
-      if (unassigned.length > 0) {
-        newSections.push({
-          id: 'unassigned',
-          title: 'Diğer Cihazlar',
-          icon: 'box',
-          color: '#94a3b8',
-          widgets: unassigned.map((d: any) => mapDeviceToWidget(d))
-        });
-      }
-      setSections(newSections);
-    } catch (err) {
-      console.error("Failed to load dashboard data", err);
-    } finally {
-      setIsLoading(false);
+    if (homesLoading) return;
+    
+    // Skip if no active home
+    if (!activeHome?.id) {
+      setRoomsLoading(false);
+      return;
     }
+    
+    // Skip if already loaded for this home
+    if (loadedRoomsHomeIdRef.current === activeHome.id) return;
+    loadedRoomsHomeIdRef.current = activeHome.id;
+    
+    loadRooms(activeHome.id);
+  }, [activeHome?.id, homesLoading]);
+
+  // Build sections when rooms or devices change
+  useEffect(() => {
+    if (roomsLoading || devicesLoading) return;
+    
+    buildSections(rooms, allDevices);
+  }, [rooms, allDevices, roomsLoading, devicesLoading]);
+
+  const loadRooms = async (homeId: string) => {
+    setRoomsLoading(true);
+    try {
+      const roomsRes = await api.get(`/homes/${homeId}/rooms`);
+      setRooms(roomsRes.data?.data || []);
+    } catch (err) {
+      console.error("Failed to load rooms", err);
+    } finally {
+      setRoomsLoading(false);
+    }
+  };
+
+  const buildSections = (roomsData: any[], devicesData: any[]) => {
+    const newSections: Section[] = roomsData.map((room: any, index: number) => {
+      const roomDevices = devicesData.filter((d: any) => d.roomId === room.id);
+      const colors = ['#6366f1', '#22c55e', '#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4'];
+      return {
+        id: room.id,
+        title: room.name,
+        icon: 'living_room',
+        color: colors[index % colors.length],
+        widgets: roomDevices.map((d: any) => mapDeviceToWidget(d))
+      };
+    });
+
+    const unassigned = devicesData.filter((d: any) => !d.roomId);
+    if (unassigned.length > 0) {
+      newSections.push({
+        id: 'unassigned',
+        title: 'Diğer Cihazlar',
+        icon: 'box',
+        color: '#94a3b8',
+        widgets: unassigned.map((d: any) => mapDeviceToWidget(d))
+      });
+    }
+    setSections(newSections);
   };
 
   // Subscribe to device updates via WebSocket (connection is managed by SocketProvider)
@@ -415,7 +411,7 @@ function DashboardContent() {
   };
 
   const handleAddWidgetToSection = async (deviceId: string) => {
-    if (!addWidgetSectionId) return;
+    if (!addWidgetSectionId || !activeHome?.id) return;
     try {
       // If section is 'unassigned', we clear roomId. Otherwise set it.
       const targetRoomId = addWidgetSectionId === 'unassigned' ? null : addWidgetSectionId;
@@ -423,17 +419,11 @@ function DashboardContent() {
       await api.patch(`/devices/${deviceId}`, { roomId: targetRoomId });
 
       setAddWidgetSectionId(null);
-      // Reload data to reflect changes
-      await loadDashboardData(activeHomeId);
+      // Refresh devices from DeviceContext to reflect changes
+      await refreshDevices();
     } catch (err) {
       console.error("Failed to add widget (move device)", err);
     }
-  };
-
-  const handleHomeChange = (id: string) => {
-    setActiveHomeIdState(id);
-    setActiveHomeId(id);
-    loadDashboardData(id);
   };
 
   // DnD Handlers (Keep existing logic mostly, but they are purely visual/local in this setup mostly)
@@ -478,10 +468,11 @@ function DashboardContent() {
   const handleDeleteWidget = useCallback((sectionId: string, widgetId: string) => {
     // Deleting a widget typically means "Unassign from room" or "Delete Device".
     // Let's assume Unassign.
+    if (!activeHome?.id) return;
     const deviceId = widgetId.replace('w-', '');
     api.patch(`/devices/${deviceId}`, { roomId: null })
-      .then(() => loadDashboardData(activeHomeId));
-  }, [activeHomeId]);
+      .then(() => refreshDevices());
+  }, [activeHome?.id, refreshDevices]);
 
   const handleToggleCollapse = useCallback((sectionId: string) => {
     setCollapsedSections(prev => {

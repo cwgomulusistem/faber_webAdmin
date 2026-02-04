@@ -1,10 +1,12 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '../../hooks/useAuth';
 import { usePermission } from '../../contexts/PermissionContext';
+import { useHome } from '../../contexts/HomeContext';
+import { useDevice } from '../../contexts/DeviceContext';
 import {
   LayoutDashboard,
   Router,
@@ -20,8 +22,7 @@ import {
   Plus,
   FileText
 } from 'lucide-react';
-import { cn, getActiveHomeId, setActiveHomeId } from '@/lib/utils';
-import api from '@/services/api.service';
+import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface NavItem {
@@ -49,10 +50,13 @@ export function Sidebar() {
   const pathname = usePathname();
   const { logout, user } = useAuth();
   const { can, isLoading: permissionsLoading } = usePermission();
-
-  const [deviceCount, setDeviceCount] = useState<number>(0);
-  const [homes, setHomes] = useState<any[]>([]);
-  const [activeHome, setActiveHome] = useState<any>(null);
+  
+  // Use centralized HomeContext instead of local state
+  const { homes, activeHome, setActiveHome, isLoading: homesLoading } = useHome();
+  
+  // Use centralized DeviceContext for device count
+  const { deviceCount } = useDevice();
+  
   const [isHomeMenuOpen, setIsHomeMenuOpen] = useState(false);
 
   // PBAC v2.0: Filter nav items based on permissions
@@ -61,52 +65,8 @@ export function Sidebar() {
     return navItems.filter(item => can('view', 'menu', item.menuKey));
   }, [can, permissionsLoading]);
 
-  useEffect(() => {
-    const fetchHomes = async () => {
-      try {
-        const res = await api.get('/homes');
-        const homeList = res.data?.data || [];
-        setHomes(homeList);
-
-        const currentId = getActiveHomeId();
-        if (currentId && homeList.length > 0) {
-          const current = homeList.find((h: any) => h.id === currentId) || homeList[0];
-          setActiveHome(current);
-          if (current.id !== currentId) {
-            setActiveHomeId(current.id);
-          }
-        } else if (homeList.length > 0) {
-          setActiveHome(homeList[0]);
-          setActiveHomeId(homeList[0].id);
-        }
-      } catch (e) {
-        console.error("Sidebar home fetch error", e);
-      }
-    };
-    fetchHomes();
-  }, []);
-
-  // Fetch device count when activeHome changes
-  useEffect(() => {
-    const fetchDeviceCount = async () => {
-      if (!activeHome?.id) return;
-      try {
-        const res = await api.get(`/homes/${activeHome.id}/devices`);
-        if (res.data?.success) {
-          setDeviceCount(res.data.data?.length || 0);
-        }
-      } catch (e) {
-        console.error("Failed to fetch device count", e);
-        setDeviceCount(0);
-      }
-    };
-
-    fetchDeviceCount();
-  }, [activeHome]);
-
   const handleSwitchHome = (home: any) => {
-    setActiveHomeId(home.id);
-    setActiveHome(home);
+    setActiveHome(home.id);
     setIsHomeMenuOpen(false);
     // Hard reload to ensure all data contexts refresh
     window.location.reload();
@@ -162,7 +122,7 @@ export function Sidebar() {
                 <Home className="text-white w-4 h-4" />
               </div>
               <span className="text-sm font-bold text-gray-900 dark:text-white truncate max-w-[130px]">
-                {activeHome ? activeHome.name : 'Yükleniyor...'}
+                {homesLoading ? 'Yükleniyor...' : (activeHome?.name || 'Ev Seçiniz')}
               </span>
             </div>
             <ChevronDown size={16} className={cn("text-gray-400 transition-transform duration-300", isHomeMenuOpen && "rotate-180 text-primary")} />
@@ -227,6 +187,7 @@ export function Sidebar() {
               const isActive = pathname === item.href ||
                 (item.href !== '/dashboard' && pathname.startsWith(item.href));
               
+              // Device count from DeviceContext
               const badge = item.href === '/dashboard/devices' ? deviceCount : item.badge;
 
               if (isActive) {
