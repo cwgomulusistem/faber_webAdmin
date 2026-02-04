@@ -1040,18 +1040,20 @@ function NotificationToggle({ title, description, defaultChecked }: { title: str
         <p className="text-sm text-slate-500">{description}</p>
       </div>
       <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
         onClick={() => setChecked(!checked)}
         className={cn(
-          "w-11 h-6 rounded-full transition-colors relative",
-          checked ? "bg-blue-500" : "bg-slate-300 dark:bg-slate-600"
+          "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2",
+          checked ? "bg-blue-500" : "bg-slate-200 dark:bg-slate-700"
         )}
       >
         <span
           className={cn(
-            "absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform",
-            checked ? "translate-x-5.5 left-0.5" : "left-0.5"
+            "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out",
+            checked ? "translate-x-5" : "translate-x-0"
           )}
-          style={{ transform: checked ? 'translateX(22px)' : 'translateX(0)' }}
         />
       </button>
     </div>
