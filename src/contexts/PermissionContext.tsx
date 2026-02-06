@@ -40,6 +40,12 @@ export interface PermissionContextType {
   can: (action: PermissionAction, subject: PermissionSubject, target?: string) => boolean;
   refetch: (forceRefresh?: boolean) => Promise<void>;
   getHomePermission: (homeId?: string) => HomePermission | null;
+  // PBAC v3.0 Helper Functions
+  canManageDevices: () => boolean;
+  canManageScenes: () => boolean;
+  canManageMembers: () => boolean;
+  isDeviceVisible: (deviceId: string, roomId?: string) => boolean;
+  getEffectivePermission: (deviceId: string, roomId?: string) => string;
 }
 
 // ==================== Constants ====================
@@ -228,6 +234,88 @@ export function PermissionProvider({ children }: { children: React.ReactNode }) 
     return bundle.homes.find(h => h.id === targetHomeId) || null;
   }, [bundle]);
 
+  // PBAC v3.0: Get effective permission for a device using conflict resolution
+  // Priority: Specific Device > Specific Room > Wildcard Device > Wildcard Room > Default
+  const getEffectivePermission = useCallback((deviceId: string, roomId?: string): string => {
+    const homePermission = getHomePermission();
+    if (!homePermission) return 'VIEW_ONLY';
+
+    // OWNER/ADMIN has FULL access
+    if (['OWNER', 'ADMIN'].includes(homePermission.memberRole)) return 'FULL';
+
+    const devicePerms = homePermission.devicePermissions || {};
+    const roomPerms = homePermission.roomPermissions || {};
+    const defaultPerm = homePermission.defaultPermission || 'VIEW_ONLY';
+
+    // Priority 1: Specific device permission
+    if (devicePerms[deviceId]) {
+      return devicePerms[deviceId];
+    }
+
+    // Priority 2: Specific room permission (if device is in a room)
+    if (roomId && roomPerms[roomId]) {
+      return roomPerms[roomId];
+    }
+
+    // Priority 3: Wildcard device permission (*)
+    if (devicePerms['*']) {
+      return devicePerms['*'];
+    }
+
+    // Priority 4: Wildcard room permission (*)
+    if (roomPerms['*']) {
+      return roomPerms['*'];
+    }
+
+    // Priority 5: Default permission
+    return defaultPerm;
+  }, [getHomePermission]);
+
+  // PBAC v3.0: Check if device is visible to user
+  const isDeviceVisible = useCallback((deviceId: string, roomId?: string): boolean => {
+    const level = getEffectivePermission(deviceId, roomId);
+    return level !== '' && level !== 'NONE';
+  }, [getEffectivePermission]);
+
+  // PBAC v3.0: Check if user can manage devices (add/delete/rename)
+  const canManageDevices = useCallback((): boolean => {
+    if (!bundle) return false;
+    if (bundle.role === 'MASTER') return true;
+
+    const homePermission = getHomePermission();
+    if (!homePermission) return false;
+
+    if (homePermission.memberRole === 'OWNER') return true;
+
+    return homePermission.menuPermissions['devices_manage'] === true;
+  }, [bundle, getHomePermission]);
+
+  // PBAC v3.0: Check if user can manage scenes (create/edit/delete automations)
+  const canManageScenes = useCallback((): boolean => {
+    if (!bundle) return false;
+    if (bundle.role === 'MASTER') return true;
+
+    const homePermission = getHomePermission();
+    if (!homePermission) return false;
+
+    if (homePermission.memberRole === 'OWNER') return true;
+
+    return homePermission.menuPermissions['scenes_manage'] === true;
+  }, [bundle, getHomePermission]);
+
+  // PBAC v3.0: Check if user can manage members (invite/remove/change permissions)
+  const canManageMembers = useCallback((): boolean => {
+    if (!bundle) return false;
+    if (bundle.role === 'MASTER') return true;
+
+    const homePermission = getHomePermission();
+    if (!homePermission) return false;
+
+    if (homePermission.memberRole === 'OWNER') return true;
+
+    return homePermission.menuPermissions['members_manage'] === true;
+  }, [bundle, getHomePermission]);
+
   // CASL-style can() function
   const can = useCallback((
     action: PermissionAction,
@@ -252,11 +340,8 @@ export function PermissionProvider({ children }: { children: React.ReactNode }) 
 
       case 'device':
         if (!target) return false;
-        const deviceLevel = getResourcePermission(
-          activeHome.devicePermissions,
-          target,
-          activeHome.defaultPermission
-        );
+        // Use getEffectivePermission for proper conflict resolution
+        const deviceLevel = getEffectivePermission(target);
         return checkPermissionLevel(deviceLevel, action);
 
       case 'room':
@@ -272,16 +357,23 @@ export function PermissionProvider({ children }: { children: React.ReactNode }) 
         // Scenes require menu permission + CONTROL level
         if (!activeHome.menuPermissions['scenes']) return false;
         if (action === 'view') return true;
+        // For manage/delete actions, check scenes_manage
+        if (action === 'manage' || action === 'delete') {
+          return canManageScenes();
+        }
         return checkPermissionLevel(activeHome.defaultPermission, action);
 
       case 'member':
-        // Only OWNER and ADMIN can manage members
-        return ['OWNER', 'ADMIN'].includes(activeHome.memberRole);
+        // Only OWNER can manage members, ADMIN can view
+        if (action === 'view') {
+          return ['OWNER', 'ADMIN'].includes(activeHome.memberRole);
+        }
+        return canManageMembers();
 
       default:
         return false;
     }
-  }, [bundle, getHomePermission]);
+  }, [bundle, getHomePermission, getEffectivePermission, canManageScenes, canManageMembers]);
 
   // Memoized context value
   const value = useMemo<PermissionContextType>(() => ({
@@ -291,7 +383,13 @@ export function PermissionProvider({ children }: { children: React.ReactNode }) 
     can,
     refetch: fetchPermissions,
     getHomePermission,
-  }), [bundle, isLoading, can, fetchPermissions, getHomePermission]);
+    // PBAC v3.0 helpers
+    canManageDevices,
+    canManageScenes,
+    canManageMembers,
+    isDeviceVisible,
+    getEffectivePermission,
+  }), [bundle, isLoading, can, fetchPermissions, getHomePermission, canManageDevices, canManageScenes, canManageMembers, isDeviceVisible, getEffectivePermission]);
 
   return (
     <PermissionContext.Provider value={value}>

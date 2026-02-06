@@ -6,8 +6,11 @@ import { Search, Plus, ListFilter, LayoutGrid, MoreVertical, Lightbulb, Lock, Th
 import { cn, getActiveHomeId } from '@/lib/utils';
 import api from '@/services/api.service';
 import { ConnectionStatus } from '@/components/common/ConnectionStatus';
+import { usePermission } from '@/contexts/PermissionContext';
 
 export default function DevicesPage() {
+  // PBAC v3.0: Use canManageDevices helper for devices_manage permission
+  const { canManageDevices } = usePermission();
   const router = useRouter();
 
   const handleBack = () => {
@@ -92,10 +95,13 @@ export default function DevicesPage() {
             <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
           </button>
 
-          <button className="flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-xl bg-primary hover:bg-blue-600 text-white px-4 py-2 shadow-sm transition-all active:scale-95 text-sm font-semibold">
-            <Plus size={18} />
-            <span>Cihaz Ekle</span>
-          </button>
+          {/* PBAC v3.0: Only show add button if user can manage devices */}
+          {canManageDevices() && (
+            <button className="flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-xl bg-primary hover:bg-blue-600 text-white px-4 py-2 shadow-sm transition-all active:scale-95 text-sm font-semibold">
+              <Plus size={18} />
+              <span>Cihaz Ekle</span>
+            </button>
+          )}
         </div>
       </header>
 

@@ -6,6 +6,7 @@ import { Play, Pause, Plus, Clock, Moon, Sun, Key, Video, Bell, Wind, Droplets, 
 import { cn, getActiveHomeId } from '@/lib/utils';
 import { ConnectionStatus } from '@/components/common/ConnectionStatus';
 import { adminService } from '@/services/admin.service';
+import { usePermission } from '@/contexts/PermissionContext';
 import type { Scene, SceneTrigger } from '@/types/scene.types';
 
 // Icon mapping for scenes
@@ -37,6 +38,9 @@ const TRIGGER_ICONS: Record<SceneTrigger | string, React.ReactNode> = {
 
 export default function ScenesPage() {
   const router = useRouter();
+  // PBAC v3.0: Use canManageScenes helper for scenes_manage permission
+  const { canManageScenes } = usePermission();
+  
   const [scenes, setScenes] = useState<Scene[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -187,13 +191,16 @@ export default function ScenesPage() {
             <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
           </button>
 
-          <button 
-            onClick={() => router.push('/dashboard/scenes/new')}
-            className="flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-xl bg-primary hover:bg-blue-600 text-white px-4 py-2 shadow-sm transition-all active:scale-95 text-sm font-semibold"
-          >
-            <Plus size={18} />
-            <span>Yeni Oluştur</span>
-          </button>
+          {/* PBAC v3.0: Only show add button if user can manage scenes */}
+          {canManageScenes() && (
+            <button 
+              onClick={() => router.push('/dashboard/scenes/new')}
+              className="flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-xl bg-primary hover:bg-blue-600 text-white px-4 py-2 shadow-sm transition-all active:scale-95 text-sm font-semibold"
+            >
+              <Plus size={18} />
+              <span>Yeni Oluştur</span>
+            </button>
+          )}
         </div>
       </header>
 
@@ -224,13 +231,15 @@ export default function ScenesPage() {
             <p className="text-gray-500 text-center max-w-md">
               Cihazlarınızı otomatikleştirmek için yeni bir sahne veya otomasyon oluşturun.
             </p>
-            <button 
-              onClick={() => router.push('/dashboard/scenes/new')}
-              className="mt-4 flex items-center gap-2 bg-primary hover:bg-blue-600 text-white px-6 py-3 rounded-xl font-semibold transition-all"
-            >
-              <Plus size={20} />
-              <span>İlk Sahnenizi Oluşturun</span>
-            </button>
+            {canManageScenes() && (
+              <button 
+                onClick={() => router.push('/dashboard/scenes/new')}
+                className="mt-4 flex items-center gap-2 bg-primary hover:bg-blue-600 text-white px-6 py-3 rounded-xl font-semibold transition-all"
+              >
+                <Plus size={20} />
+                <span>İlk Sahnenizi Oluşturun</span>
+              </button>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 h-full">
@@ -309,12 +318,14 @@ export default function ScenesPage() {
                 <div className="flex flex-col items-center justify-center py-12 text-center bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-dashed border-gray-200 dark:border-gray-700">
                   <Clock className="w-10 h-10 text-gray-400 mb-3" />
                   <p className="text-gray-500">Zamanlanmış otomasyon bulunmuyor</p>
-                  <button 
-                    onClick={() => router.push('/dashboard/scenes/new?type=automation')}
-                    className="mt-4 text-primary text-sm font-medium hover:underline"
-                  >
-                    + Otomasyon Ekle
-                  </button>
+                  {canManageScenes() && (
+                    <button 
+                      onClick={() => router.push('/dashboard/scenes/new?type=automation')}
+                      className="mt-4 text-primary text-sm font-medium hover:underline"
+                    >
+                      + Otomasyon Ekle
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div className="flex flex-col gap-3">
