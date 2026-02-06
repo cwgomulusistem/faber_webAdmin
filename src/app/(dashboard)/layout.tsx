@@ -6,17 +6,27 @@ import { Sidebar } from '../../components/layout/Sidebar';
 import { usePermission } from '../../contexts/PermissionContext';
 import { toast } from 'sonner';
 
-// PBAC v2.0: Map routes to menu permission keys
-const routePermissions: Record<string, string> = {
-  '/dashboard': 'dashboard',
-  '/dashboard/devices': 'devices',
-  '/dashboard/rooms': 'rooms',
-  '/dashboard/scenes': 'scenes',
-  '/dashboard/members': 'members',
-  '/dashboard/permissions': 'members',
-  '/dashboard/settings': 'settings',
-  '/dashboard/logs': 'logs',
-  '/dashboard/homes': 'homes',
+// PBAC v3.0: Map routes to menu permission keys (includes sub-routes)
+const routePermissionPatterns: Array<{ pattern: string; menuKey: string }> = [
+  { pattern: '/dashboard/devices', menuKey: 'devices' },
+  { pattern: '/dashboard/rooms', menuKey: 'rooms' },
+  { pattern: '/dashboard/scenes', menuKey: 'scenes' },
+  { pattern: '/dashboard/members', menuKey: 'members' },
+  { pattern: '/dashboard/permissions', menuKey: 'members' },
+  { pattern: '/dashboard/settings', menuKey: 'settings' },
+  { pattern: '/dashboard/logs', menuKey: 'logs' },
+  { pattern: '/dashboard/homes', menuKey: 'homes' },
+  { pattern: '/dashboard', menuKey: 'dashboard' }, // Must be last (most general)
+];
+
+// Find the matching menu key for a given path
+const getMenuKeyForPath = (pathname: string): string | null => {
+  for (const { pattern, menuKey } of routePermissionPatterns) {
+    if (pathname === pattern || pathname.startsWith(`${pattern}/`)) {
+      return menuKey;
+    }
+  }
+  return null;
 };
 
 export default function DashboardLayout({
@@ -28,12 +38,12 @@ export default function DashboardLayout({
   const router = useRouter();
   const { can, isLoading, bundle } = usePermission();
 
-  // PBAC v2.0: Route-level permission guard
+  // PBAC v3.0: Route-level permission guard (supports sub-routes)
   useEffect(() => {
     if (isLoading || !bundle) return;
 
-    // Find the matching route permission
-    const menuKey = routePermissions[pathname];
+    // Find the matching route permission (supports sub-routes like /members/[id])
+    const menuKey = getMenuKeyForPath(pathname);
     
     if (menuKey && !can('view', 'menu', menuKey)) {
       toast.error('Bu sayfaya erişim izniniz yok');

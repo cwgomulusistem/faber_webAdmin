@@ -49,7 +49,7 @@ const navItems: NavItem[] = [
 export function Sidebar() {
   const pathname = usePathname();
   const { logout, user } = useAuth();
-  const { can, isLoading: permissionsLoading } = usePermission();
+  const { can, isLoading: permissionsLoading, bundle } = usePermission();
   
   // Use centralized HomeContext instead of local state
   const { homes, activeHome, setActiveHome, isLoading: homesLoading } = useHome();
@@ -59,11 +59,17 @@ export function Sidebar() {
   
   const [isHomeMenuOpen, setIsHomeMenuOpen] = useState(false);
 
-  // PBAC v2.0: Filter nav items based on permissions
+  // PBAC v3.0: Filter nav items based on permissions
+  // Don't show all items while loading - show minimal set
   const visibleNavItems = useMemo(() => {
-    if (permissionsLoading) return navItems; // Show all while loading
+    // While loading or no bundle, show only basic items
+    if (permissionsLoading || !bundle) {
+      return navItems.filter(item => ['dashboard', 'homes'].includes(item.menuKey));
+    }
+    
+    // Filter based on actual permissions
     return navItems.filter(item => can('view', 'menu', item.menuKey));
-  }, [can, permissionsLoading]);
+  }, [can, permissionsLoading, bundle]);
 
   const handleSwitchHome = (home: any) => {
     setActiveHome(home.id);
