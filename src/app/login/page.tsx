@@ -181,12 +181,15 @@ function LoginForm() {
           </div>
         )}
 
-        {/* Remaining Attempts Warning */}
-        {remainingAttempts !== null && remainingAttempts <= 2 && !isLocked && (
-          <div className={styles.warningBanner}>
+        {/* Remaining Attempts Warning - Show for all attempts */}
+        {remainingAttempts !== null && !isLocked && (
+          <div className={remainingAttempts <= 2 ? styles.warningBanner : styles.infoBanner}>
             <AlertTriangle size={18} />
             <span>
-              Dikkat: <strong>{remainingAttempts}</strong> deneme hakkınız kaldı
+              {remainingAttempts <= 2 
+                ? `Dikkat: Sadece ${remainingAttempts} deneme hakkınız kaldı!`
+                : `Kalan deneme hakkı: ${remainingAttempts}/5`
+              }
             </span>
           </div>
         )}

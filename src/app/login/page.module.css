@@ -401,6 +401,24 @@
   font-weight: 700;
 }
 
+/* Info Banner (for remaining attempts > 2) */
+.infoBanner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  border: 1px solid #93c5fd;
+  color: #1e40af;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
+  font-size: 0.875rem;
+}
+
+.infoBanner svg {
+  flex-shrink: 0;
+}
+
 /* Locked Button State */
 .lockedBtn {
   background: #94a3b8 !important;
