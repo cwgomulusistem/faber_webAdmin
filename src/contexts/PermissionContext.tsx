@@ -322,21 +322,43 @@ export function PermissionProvider({ children }: { children: React.ReactNode }) 
     subject: PermissionSubject,
     target?: string
   ): boolean => {
-    if (!bundle) return false;
+    if (!bundle) {
+      console.log('[can] No bundle - returning false');
+      return false;
+    }
 
     // MASTER role can do everything
-    if (bundle.role === 'MASTER') return true;
+    if (bundle.role === 'MASTER') {
+      console.log('[can] MASTER role - returning true');
+      return true;
+    }
 
     const activeHome = getHomePermission();
-    if (!activeHome) return false;
+    if (!activeHome) {
+      console.log('[can] No activeHome - returning false');
+      return false;
+    }
+
+    // Debug: Log the active home details
+    console.log('[can] ActiveHome:', {
+      id: activeHome.id,
+      name: activeHome.name,
+      memberRole: activeHome.memberRole,
+      menuPermissions: activeHome.menuPermissions
+    });
 
     // OWNER role has full access
-    if (activeHome.memberRole === 'OWNER') return true;
+    if (activeHome.memberRole === 'OWNER') {
+      console.log('[can] OWNER role - returning true for all');
+      return true;
+    }
 
     switch (subject) {
       case 'menu':
         // Check menu permission
-        return target ? activeHome.menuPermissions[target] === true : false;
+        const hasMenuPerm = target ? activeHome.menuPermissions[target] === true : false;
+        console.log(`[can] menu.${target} = ${hasMenuPerm} (value: ${activeHome.menuPermissions[target || '']})`);
+        return hasMenuPerm;
 
       case 'device':
         if (!target) return false;

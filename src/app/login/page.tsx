@@ -30,16 +30,21 @@ function LoginForm() {
     verify2FA, 
     verify2FAWithPreAuth, 
     verifyRecoveryCode,
+    forgotPassword,
+    resetPassword,
     isPreAuth,
     twoFactorType,
     clearLockout
   } = useAuth();
 
-  const [step, setStep] = useState<'login' | '2fa' | 'recovery'>('login');
+  const [step, setStep] = useState<'login' | '2fa' | 'recovery' | 'forgot' | 'reset'>('login');
   const [identifier, setIdentifier] = useState(''); // Email OR Username (PBAC v2.0)
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
   const [recoveryCode, setRecoveryCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   
@@ -110,6 +115,32 @@ function LoginForm() {
       } else if (step === 'recovery') {
         await verifyRecoveryCode({ code: recoveryCode });
         router.push(redirectPath);
+      } else if (step === 'forgot') {
+        // Send password reset code
+        await forgotPassword({ email: identifier });
+        setSuccessMessage('Şifre sıfırlama kodu e-posta adresinize gönderildi.');
+        setStep('reset');
+        setCode('');
+      } else if (step === 'reset') {
+        // Validate passwords match
+        if (newPassword !== confirmPassword) {
+          setError('Şifreler eşleşmiyor');
+          setIsLoading(false);
+          return;
+        }
+        if (newPassword.length < 8) {
+          setError('Şifre en az 8 karakter olmalıdır');
+          setIsLoading(false);
+          return;
+        }
+        // Reset password with code
+        await resetPassword({ email: identifier, code, newPassword });
+        setSuccessMessage('Şifreniz başarıyla değiştirildi. Giriş yapabilirsiniz.');
+        setStep('login');
+        setPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+        setCode('');
       }
     } catch (err: any) {
       console.error(err);
@@ -140,13 +171,22 @@ function LoginForm() {
     setStep('login');
     setCode('');
     setRecoveryCode('');
+    setNewPassword('');
+    setConfirmPassword('');
     setError('');
+    setSuccessMessage('');
   };
 
   const handleUseRecoveryCode = () => {
     setStep('recovery');
     setCode('');
     setError('');
+  };
+
+  const handleForgotPassword = () => {
+    setStep('forgot');
+    setError('');
+    setSuccessMessage('');
   };
 
   return (
@@ -165,8 +205,18 @@ function LoginForm() {
                 : 'E-postanıza gönderilen kodu girin'
             )}
             {step === 'recovery' && 'Kurtarma kodunuzu girin'}
+            {step === 'forgot' && 'Şifre sıfırlama kodu gönderin'}
+            {step === 'reset' && 'Yeni şifrenizi belirleyin'}
           </p>
         </div>
+
+        {/* Success Banner */}
+        {successMessage && (
+          <div className={styles.successBanner}>
+            <Shield size={18} />
+            <span>{successMessage}</span>
+          </div>
+        )}
 
         {/* Lockout Banner */}
         {isLocked && (
@@ -230,6 +280,90 @@ function LoginForm() {
                   placeholder="••••••••"
                   autoComplete="current-password"
                   disabled={isLoading || isLocked}
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={handleForgotPassword}
+                className={styles.forgotLink}
+                disabled={isLoading || isLocked}
+              >
+                Şifremi Unuttum
+              </button>
+            </>
+          )}
+
+          {/* Forgot Password Step */}
+          {step === 'forgot' && (
+            <>
+              <div className={styles.field}>
+                <label className={styles.label}>E-posta Adresi</label>
+                <input
+                  type="email"
+                  required
+                  className={styles.input}
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
+                  placeholder="ornek@email.com"
+                  autoComplete="email"
+                  disabled={isLoading}
+                  autoFocus
+                />
+                <p className={styles.hint}>
+                  Kayıtlı e-posta adresinize şifre sıfırlama kodu göndereceğiz
+                </p>
+              </div>
+            </>
+          )}
+
+          {/* Reset Password Step */}
+          {step === 'reset' && (
+            <>
+              <div className={styles.field}>
+                <label className={styles.label}>Doğrulama Kodu</label>
+                <input
+                  type="text"
+                  required
+                  className={`${styles.input} ${styles.codeInput}`}
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="000000"
+                  maxLength={6}
+                  disabled={isLoading}
+                  autoFocus
+                />
+                <p className={styles.hint}>
+                  E-postanıza gönderilen 6 haneli kodu girin
+                </p>
+              </div>
+
+              <div className={styles.field}>
+                <label className={styles.label}>Yeni Şifre</label>
+                <input
+                  type="password"
+                  required
+                  className={styles.input}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="En az 8 karakter"
+                  autoComplete="new-password"
+                  disabled={isLoading}
+                  minLength={8}
+                />
+              </div>
+
+              <div className={styles.field}>
+                <label className={styles.label}>Şifre Tekrar</label>
+                <input
+                  type="password"
+                  required
+                  className={styles.input}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Şifrenizi tekrar girin"
+                  autoComplete="new-password"
+                  disabled={isLoading}
                 />
               </div>
             </>
@@ -315,12 +449,27 @@ function LoginForm() {
                 <span>{formatTime(countdown)} sonra deneyin</span>
               </>
             ) : (
-              step === 'login' ? 'Giriş Yap' : 'Doğrula'
+              step === 'login' ? 'Giriş Yap' : 
+              step === 'forgot' ? 'Kod Gönder' :
+              step === 'reset' ? 'Şifreyi Değiştir' :
+              'Doğrula'
             )}
           </button>
         </form>
 
         <div className={styles.footer}>
+          {/* Forgot/Reset steps - Back button */}
+          {(step === 'forgot' || step === 'reset') && (
+            <button
+              onClick={handleBackToLogin}
+              className={styles.backLink}
+              disabled={isLoading}
+            >
+              <ArrowLeft size={16} />
+              <span>Giriş sayfasına dön</span>
+            </button>
+          )}
+
           {step === 'login' && (
             <>
               Hesabınız yok mu?{' '}

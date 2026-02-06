@@ -62,14 +62,31 @@ export function Sidebar() {
   // PBAC v3.0: Filter nav items based on permissions
   // Don't show all items while loading - show minimal set
   const visibleNavItems = useMemo(() => {
+    // Debug logging
+    console.log('[Sidebar PBAC Debug]', {
+      permissionsLoading,
+      hasBundle: !!bundle,
+      bundleRole: bundle?.role,
+      activeHomeId: activeHome?.id,
+      homes: bundle?.homes?.map(h => ({ id: h.id, name: h.name, role: h.memberRole, menuPerms: h.menuPermissions }))
+    });
+    
     // While loading or no bundle, show only basic items
     if (permissionsLoading || !bundle) {
+      console.log('[Sidebar] Loading or no bundle - showing basic items');
       return navItems.filter(item => ['dashboard', 'homes'].includes(item.menuKey));
     }
     
     // Filter based on actual permissions
-    return navItems.filter(item => can('view', 'menu', item.menuKey));
-  }, [can, permissionsLoading, bundle]);
+    const filtered = navItems.filter(item => {
+      const hasPermission = can('view', 'menu', item.menuKey);
+      console.log(`[Sidebar] ${item.menuKey}: ${hasPermission}`);
+      return hasPermission;
+    });
+    
+    console.log('[Sidebar] Visible items:', filtered.map(i => i.menuKey));
+    return filtered;
+  }, [can, permissionsLoading, bundle, activeHome]);
 
   const handleSwitchHome = (home: any) => {
     setActiveHome(home.id);
