@@ -19,7 +19,8 @@ export function InviteMemberModal({ open, onClose, onSuccess }: InviteMemberModa
         fullName: '',
         username: '',
         password: '',
-        role: 'member'
+        role: 'MEMBER',
+        accessExpiresAt: ''
     });
     const [loading, setLoading] = useState(false);
 
@@ -62,12 +63,13 @@ export function InviteMemberModal({ open, onClose, onSuccess }: InviteMemberModa
                 password: payload.password,
                 fullName: payload.fullName,
                 defaultPermission: 'CONTROL',
-                role: payload.role
+                role: payload.role,
+                accessExpiresAt: payload.accessExpiresAt ? new Date(payload.accessExpiresAt).toISOString() : null
             });
 
             onSuccess();
             onClose();
-            setPayload({ fullName: '', username: '', password: '', role: 'member' });
+            setPayload({ fullName: '', username: '', password: '', role: 'MEMBER', accessExpiresAt: '' });
             setSelectedHomeIds([]);
         } catch (err: any) {
             console.error("Invite failed", err);
@@ -162,6 +164,19 @@ export function InviteMemberModal({ open, onClose, onSuccess }: InviteMemberModa
                             {payload.role === 'GUEST' && "Limited access, possibly with expiration."}
                         </p>
                     </div>
+
+                    {payload.role === 'GUEST' && (
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Access Expiration (Optional)</label>
+                            <input
+                                type="datetime-local"
+                                value={payload.accessExpiresAt}
+                                onChange={e => setPayload({ ...payload, accessExpiresAt: e.target.value })}
+                                className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-transparent focus:ring-2 focus:ring-primary outline-none text-slate-700 dark:text-gray-200"
+                            />
+                            <p className="text-xs text-slate-500 mt-1">Leave empty for permanent access.</p>
+                        </div>
+                    )}
 
                     {/* Error Message Display */}
                     {/* Note: In a real app we'd use a state for this */}

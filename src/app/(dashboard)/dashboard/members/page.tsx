@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Search, Home, Key, Clock, Bell, Users, Building2 } from 'lucide-react';
+import { Plus, Search, Home, Key, Clock, Bell, Users, Building2, X } from 'lucide-react';
 import api from '@/services/api.service';
 import { cn } from '@/lib/utils';
 import { InviteMemberModal } from '@/components/members/InviteMemberModal';
@@ -11,6 +11,7 @@ import { useSocket } from '@/hooks/useSocket';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { UserRole } from '@/types/auth.types';
+import { toast } from 'sonner';
 
 interface HomeInfo {
     id: string;
@@ -20,6 +21,7 @@ interface HomeInfo {
 interface MemberWithHomes {
     id: string;
     name: string;
+    username?: string;
     email?: string;
     role: string;
     type: string;
@@ -27,6 +29,7 @@ interface MemberWithHomes {
     avatar?: string;
     permissions: string;
     isGuest: boolean;
+    accessExpiresAt?: string;
     homes: HomeInfo[]; // Which homes this member belongs to
 }
 
@@ -48,14 +51,6 @@ export default function MembersPage() {
 
     // Prevent double fetching in React StrictMode
     const hasFetchedRef = useRef(false);
-
-    console.log('MembersPage Debug:', {
-        user,
-        role: user?.role,
-        UserRole_MASTER: UserRole.MASTER,
-        isMaster,
-        authLoading
-    });
 
     useEffect(() => {
         if (!authLoading && !isMaster) {
@@ -95,16 +90,33 @@ export default function MembersPage() {
                             }
                         } else {
                             // New user
+                            const memberRole = (u.role as unknown as string);
+                            let displayRole = 'Sakin';
+                            let displayPermissions = 'Standart erişim';
+
+                            if (memberRole === 'ADMIN') {
+                                displayRole = 'Admin';
+                                displayPermissions = 'Yönetici yetkisi';
+                            } else if (memberRole === 'GUEST' || u.accessExpiresAt) {
+                                displayRole = 'Misafir';
+                                displayPermissions = 'Kısıtlı erişim';
+                            } else if (memberRole === 'MASTER' || memberRole === 'master') {
+                                displayRole = 'Ana Kullanıcı';
+                                displayPermissions = 'Tam yetki';
+                            }
+
                             memberMap.set(u.id, {
                                 id: u.id,
-                                name: u.fullName || u.name || 'İsimsiz',
+                                name: u.fullName || u.name || u.username || 'İsimsiz',
+                                username: u.username,
                                 email: u.email,
-                                role: ((u.role as unknown as string) === UserRole.MASTER || (u.role as unknown as string) === 'master' || (u.role as unknown as string) === 'MASTER') ? 'Admin' : 'Sakin',
-                                type: u.role,
+                                role: displayRole,
+                                type: memberRole,
                                 status: 'Evde',
                                 avatar: u.avatar,
-                                permissions: ((u.role as unknown as string) === UserRole.MASTER || (u.role as unknown as string) === 'master' || (u.role as unknown as string) === 'MASTER') ? 'Tam yetki' : 'Standart erişim',
-                                isGuest: !!u.accessExpiresAt,
+                                permissions: displayPermissions,
+                                isGuest: !!u.accessExpiresAt || memberRole === 'GUEST',
+                                accessExpiresAt: u.accessExpiresAt,
                                 homes: [{ id: home.id, name: home.name }]
                             });
                         }
@@ -291,7 +303,11 @@ export default function MembersPage() {
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                     {residents.map((member) => (
-                                        <MemberCard key={member.id} member={member} />
+                                        <MemberCard
+                                            key={member.id}
+                                            member={member}
+                                            onDeleteSuccess={fetchAllMembers}
+                                        />
                                     ))}
                                     {residents.length === 0 && (
                                         <div className="col-span-full py-10 text-center text-slate-500">
@@ -304,7 +320,7 @@ export default function MembersPage() {
                             </section>
 
                             {/* Guest Section */}
-                            <section className="pb-10">
+                            <section className="pb-10 mt-6">
                                 <div className="flex items-center justify-between mb-4 px-1">
                                     <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
                                         <Key className="text-primary" size={24} />
@@ -313,28 +329,84 @@ export default function MembersPage() {
                                     <button className="text-sm font-bold text-primary hover:text-blue-600 transition-colors">Geçmiş</button>
                                 </div>
                                 <div className="flex flex-col gap-4">
-                                    {guests.map((guest) => (
-                                        <div key={guest.id} className="flex flex-col md:flex-row md:items-center justify-between p-5 bg-white dark:bg-surface-dark rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 gap-4 transition-all hover:border-primary/30">
-                                            <div className="flex items-center gap-4">
-                                                <div className="size-12 rounded-lg bg-orange-50 dark:bg-orange-900/20 flex items-center justify-center text-orange-600 dark:text-orange-400 shrink-0">
-                                                    <Clock size={24} />
+                                    {guests.map((guest) => {
+                                        const isExpired = guest.accessExpiresAt && new Date(guest.accessExpiresAt) < new Date();
+                                        const formattedDate = guest.accessExpiresAt
+                                            ? new Date(guest.accessExpiresAt).toLocaleString('tr-TR', {
+                                                day: '2-digit',
+                                                month: '2-digit',
+                                                year: 'numeric',
+                                                hour: '2-digit',
+                                                minute: '2-digit'
+                                            })
+                                            : null;
+
+                                        return (
+                                            <div key={guest.id} className={cn(
+                                                "flex flex-col md:flex-row md:items-center justify-between p-5 bg-white dark:bg-surface-dark rounded-xl shadow-sm border gap-4 transition-all hover:border-primary/30",
+                                                isExpired ? "border-red-200 bg-red-50/10" : "border-slate-100 dark:border-slate-800"
+                                            )}>
+                                                <div className="flex items-center gap-4">
+                                                    <div className={cn(
+                                                        "size-12 rounded-lg flex items-center justify-center shrink-0",
+                                                        isExpired ? "bg-red-100 text-red-600" : "bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400"
+                                                    )}>
+                                                        <Clock size={24} />
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                                                            {guest.name}
+                                                            {isExpired && <span className="text-[10px] bg-red-500 text-white px-1.5 py-0.5 rounded uppercase tracking-wider">Süresi Doldu</span>}
+                                                        </h4>
+                                                        <div className="flex flex-col gap-0.5 mt-0.5">
+                                                            <div className="flex items-center gap-2">
+                                                                <p className="text-xs text-slate-500 dark:text-slate-400">@{guest.username || 'misafir'}</p>
+                                                                <span className="text-slate-300">•</span>
+                                                                <p className="text-xs text-slate-500 dark:text-slate-400">Geçici Erişim</p>
+                                                            </div>
+                                                            {formattedDate && (
+                                                                <p className={cn(
+                                                                    "text-xs font-medium",
+                                                                    isExpired ? "text-red-500" : "text-primary"
+                                                                )}>
+                                                                    Bitiş: {formattedDate}
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                                <div>
-                                                    <h4 className="text-base font-bold text-slate-900 dark:text-white">{guest.name}</h4>
-                                                    <p className="text-xs text-slate-500 dark:text-slate-400">Geçici Erişim</p>
+
+                                                <div className="flex items-center gap-4 justify-between md:justify-end">
+                                                    {/* Show homes */}
+                                                    <div className="flex flex-wrap gap-1">
+                                                        {guest.homes.map(home => (
+                                                            <span key={home.id} className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-slate-100 dark:bg-slate-700 text-xs text-slate-600 dark:text-slate-300">
+                                                                <Home size={12} />
+                                                                {home.name}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+
+                                                    <button
+                                                        onClick={async () => {
+                                                            if (!confirm(`${guest.name} isimli misafiri silmek istediğinize emin misiniz?`)) return;
+                                                            try {
+                                                                await api.delete(`/users/sub/${guest.id}`);
+                                                                toast.success('Misafir silindi');
+                                                                fetchAllMembers();
+                                                            } catch (err) {
+                                                                toast.error('Silme işlemi başarısız');
+                                                            }
+                                                        }}
+                                                        className="p-2 text-slate-400 hover:text-red-500 transition-colors"
+                                                        title="Misafiri Sil"
+                                                    >
+                                                        <X size={20} />
+                                                    </button>
                                                 </div>
                                             </div>
-                                            {/* Show homes */}
-                                            <div className="flex flex-wrap gap-1">
-                                                {guest.homes.map(home => (
-                                                    <span key={home.id} className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-slate-100 dark:bg-slate-700 text-xs text-slate-600 dark:text-slate-300">
-                                                        <Home size={12} />
-                                                        {home.name}
-                                                    </span>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                     {guests.length === 0 && (
                                         <div className="p-5 text-center text-slate-500 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-dashed border-slate-200 dark:border-slate-800">
                                             Aktif misafir anahtarı yok.
@@ -345,9 +417,9 @@ export default function MembersPage() {
                         </>
                     )}
                 </div>
-            </main>
+            </main >
 
             <InviteMemberModal open={isInviteModalOpen} onClose={() => setIsInviteModalOpen(false)} onSuccess={fetchAllMembers} />
-        </div>
+        </div >
     );
 }

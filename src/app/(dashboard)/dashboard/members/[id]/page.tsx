@@ -239,20 +239,21 @@ export default function SubUserDetailPage() {
     // Toggle wildcard permission for devices/rooms
     const toggleWildcard = (type: 'device' | 'room', level: PermissionLevel) => {
         if (type === 'device') {
-            if (devicePermissions['*'] === level) {
-                // Remove wildcard
-                const { '*': _, ...rest } = devicePermissions;
-                setDevicePermissions(rest);
-            } else {
-                setDevicePermissions({ '*': level });
-            }
+            setDevicePermissions(prev => {
+                if (prev['*'] === level) {
+                    const { '*': _, ...rest } = prev;
+                    return rest;
+                }
+                return { ...prev, '*': level };
+            });
         } else {
-            if (roomPermissions['*'] === level) {
-                const { '*': _, ...rest } = roomPermissions;
-                setRoomPermissions(rest);
-            } else {
-                setRoomPermissions({ '*': level });
-            }
+            setRoomPermissions(prev => {
+                if (prev['*'] === level) {
+                    const { '*': _, ...rest } = prev;
+                    return rest;
+                }
+                return { ...prev, '*': level };
+            });
         }
     };
 
