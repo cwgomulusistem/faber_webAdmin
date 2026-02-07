@@ -22,7 +22,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Pencil, Check, Plus, Search, Sun, Moon, Home, Bell, User,
-  ChevronDown, Settings, LayoutGrid, Wifi, WifiOff, X
+  ChevronDown, Settings, LayoutGrid, Wifi, WifiOff, X, AlertTriangle, ShieldOff
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { SectionCard } from '@/components/dashboard/SectionCard';
@@ -33,6 +33,7 @@ import { useHome } from '@/contexts/HomeContext';
 import { useDevice } from '@/contexts/DeviceContext';
 import api from '@/services/api.service';
 import { useSocket } from '@/hooks/useSocket';
+import { usePermission } from '@/contexts/PermissionContext';
 
 // ============================================
 // Helper Mapping Functions
@@ -152,7 +153,7 @@ function DashboardHeader({ editMode, onToggleEditMode, onAddSection }: Dashboard
 
 function SocketStatus() {
   const { isConnected, isInitializing } = useSocket();
-  
+
   // During initialization, show "Bağlanıyor" state
   if (isInitializing && !isConnected) {
     return (
@@ -162,7 +163,7 @@ function SocketStatus() {
       </div>
     );
   }
-  
+
   return (
     <div className="flex items-center gap-1.5">
       <span className={cn("w-2 h-2 rounded-full", isConnected ? "bg-green-500 animate-pulse" : "bg-red-500")}></span>
@@ -273,12 +274,13 @@ function DashboardContent() {
 
   // Use centralized HomeContext instead of local state
   const { activeHome, isLoading: homesLoading } = useHome();
-  
+
   // Use centralized DeviceContext for devices
   const { devices: allDevices, isLoading: devicesLoading, refreshDevices } = useDevice();
 
   // WebSocket subscription
   const { subscribeToDevice } = useSocket();
+  const { isExpired } = usePermission();
 
   // Track if rooms have been loaded for current home
   const loadedRoomsHomeIdRef = useRef<string | null>(null);
@@ -294,24 +296,27 @@ function DashboardContent() {
   // Load rooms when activeHome changes
   useEffect(() => {
     if (homesLoading) return;
-    
-    // Skip if no active home
-    if (!activeHome?.id) {
+
+    // Skip if no active home OR if access is expired
+    if (!activeHome?.id || activeHome.isExpired) {
       setRoomsLoading(false);
+      if (activeHome?.isExpired) {
+        setRooms([]);
+      }
       return;
     }
-    
+
     // Skip if already loaded for this home
     if (loadedRoomsHomeIdRef.current === activeHome.id) return;
     loadedRoomsHomeIdRef.current = activeHome.id;
-    
+
     loadRooms(activeHome.id);
   }, [activeHome?.id, homesLoading]);
 
   // Build sections when rooms or devices change
   useEffect(() => {
     if (roomsLoading || devicesLoading) return;
-    
+
     buildSections(rooms, allDevices);
   }, [rooms, allDevices, roomsLoading, devicesLoading]);
 
@@ -356,7 +361,7 @@ function DashboardContent() {
   // Subscribe to device updates via WebSocket (connection is managed by SocketProvider)
   useEffect(() => {
     const unsubscribes: (() => void)[] = [];
-    
+
     sections.forEach(section => {
       section.widgets.forEach(widget => {
         if (widget.entityId) {
@@ -376,7 +381,7 @@ function DashboardContent() {
         }
       });
     });
-    
+
     return () => {
       unsubscribes.forEach(unsub => unsub());
     };
@@ -504,6 +509,22 @@ function DashboardContent() {
         )}
       </AnimatePresence>
       <main className="flex-1 overflow-y-auto p-8 scroll-smooth">
+        {isExpired && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-8 p-6 bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/30 rounded-3xl flex items-center gap-4 text-red-700 dark:text-red-400 shadow-sm"
+          >
+            <div className="w-12 h-12 rounded-2xl bg-red-100 dark:bg-red-900/20 flex items-center justify-center shrink-0">
+              <AlertTriangle className="w-6 h-6 text-red-600 dark:text-red-500" />
+            </div>
+            <div>
+              <p className="font-bold text-lg">Erişim Süreniz Doldu</p>
+              <p className="text-sm opacity-80 font-medium">Bu eve olan misafir erişim süreniz sona ermiştir. Cihazları kontrol etmek için ev sahibi ile iletişime geçmelisiniz.</p>
+            </div>
+          </motion.div>
+        )}
+
         {isLoading ? <div className="flex h-full items-center justify-center text-gray-500">Veriler yükleniyor...</div> : (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
             <SortableContext items={sections.map(s => s.id)} strategy={verticalListSortingStrategy}>

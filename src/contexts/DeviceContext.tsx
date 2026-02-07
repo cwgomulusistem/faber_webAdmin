@@ -31,7 +31,7 @@ const DeviceContext = createContext<DeviceContextType>({
   deviceCount: 0,
   isLoading: true,
   error: null,
-  refreshDevices: async () => {},
+  refreshDevices: async () => { },
 });
 
 export function useDevice(): DeviceContextType {
@@ -47,28 +47,31 @@ export function DeviceProvider({ children }: { children: React.ReactNode }) {
   const [devices, setDevices] = useState<Device[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
+
   // CRITICAL: Race Condition Protection
   // When user quickly switches homes, prevents stale data from overwriting new data
   useEffect(() => {
     let isMounted = true; // Cleanup flag
-    
+
     const load = async () => {
       // Wait for homes to finish loading
       if (homesLoading) return;
-      
-      // Clear devices if no active home
-      if (!activeHome?.id) {
+
+      // Clear devices if no active home OR if access is expired
+      if (!activeHome?.id || activeHome.isExpired) {
         if (isMounted) {
           setDevices([]);
           setIsLoading(false);
           setError(null);
+          if (activeHome?.isExpired) {
+            console.log('[DeviceContext] Access expired, skipping fetch');
+          }
         }
         return;
       }
-      
+
       if (isMounted) setIsLoading(true);
-      
+
       try {
         const res = await api.get(`/homes/${activeHome.id}/devices`);
         // Only update state if component is still mounted and activeHome hasn't changed
@@ -88,22 +91,22 @@ export function DeviceProvider({ children }: { children: React.ReactNode }) {
         }
       }
     };
-    
+
     load();
-    
+
     // Cleanup: ignore stale requests when activeHome changes or component unmounts
-    return () => { 
-      isMounted = false; 
+    return () => {
+      isMounted = false;
     };
   }, [activeHome?.id, homesLoading]);
-  
+
   // Manual refresh function (for pull-to-refresh, add device, etc.)
   const refreshDevices = useCallback(async () => {
-    if (!activeHome?.id) return;
-    
+    if (!activeHome?.id || activeHome.isExpired) return;
+
     setIsLoading(true);
     setError(null);
-    
+
     try {
       const res = await api.get(`/homes/${activeHome.id}/devices`);
       setDevices(res.data?.data || []);

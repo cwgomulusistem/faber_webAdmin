@@ -10,9 +10,11 @@ export interface Home {
   address?: string;
   timezone: string;
   isDefault: boolean;
+  isExpired?: boolean;
+  accessExpiresAt?: string;
   createdAt: string;
   updatedAt: string;
-  
+
   // Relations
   rooms?: Room[];
   scenes?: Scene[];
@@ -26,7 +28,7 @@ export interface Room {
   order: number;
   createdAt: string;
   updatedAt: string;
-  
+
   // Relations (optional, loaded separately)
   deviceCount?: number;
 }

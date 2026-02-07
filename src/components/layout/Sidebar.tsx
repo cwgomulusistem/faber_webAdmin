@@ -50,13 +50,13 @@ export function Sidebar() {
   const pathname = usePathname();
   const { logout, user } = useAuth();
   const { can, isLoading: permissionsLoading, bundle } = usePermission();
-  
+
   // Use centralized HomeContext instead of local state
   const { homes, activeHome, setActiveHome, isLoading: homesLoading } = useHome();
-  
+
   // Use centralized DeviceContext for device count
   const { deviceCount } = useDevice();
-  
+
   const [isHomeMenuOpen, setIsHomeMenuOpen] = useState(false);
 
   // PBAC v3.0: Filter nav items based on permissions
@@ -70,20 +70,20 @@ export function Sidebar() {
       activeHomeId: activeHome?.id,
       homes: bundle?.homes?.map(h => ({ id: h.id, name: h.name, role: h.memberRole, menuPerms: h.menuPermissions }))
     });
-    
+
     // While loading or no bundle, show only basic items
     if (permissionsLoading || !bundle) {
       console.log('[Sidebar] Loading or no bundle - showing basic items');
       return navItems.filter(item => ['dashboard', 'homes'].includes(item.menuKey));
     }
-    
+
     // Filter based on actual permissions
     const filtered = navItems.filter(item => {
       const hasPermission = can('view', 'menu', item.menuKey);
       console.log(`[Sidebar] ${item.menuKey}: ${hasPermission}`);
       return hasPermission;
     });
-    
+
     console.log('[Sidebar] Visible items:', filtered.map(i => i.menuKey));
     return filtered;
   }, [can, permissionsLoading, bundle, activeHome]);
@@ -115,9 +115,9 @@ export function Sidebar() {
             <div className="relative">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 via-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/30">
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" className="text-white">
-                  <path d="M3 9.5L12 4L21 9.5V20C21 20.5523 20.5523 21 20 21H4C3.44772 21 3 20.5523 3 20V9.5Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"/>
+                  <path d="M3 9.5L12 4L21 9.5V20C21 20.5523 20.5523 21 20 21H4C3.44772 21 3 20.5523 3 20V9.5Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
                   <circle cx="12" cy="13" r="3" fill="currentColor" opacity="0.9" />
-                  <path d="M12 10V7M15 13H18M12 16V19M6 13H9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" opacity="0.6"/>
+                  <path d="M12 10V7M15 13H18M12 16V19M6 13H9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" opacity="0.6" />
                 </svg>
               </div>
             </div>
@@ -180,6 +180,11 @@ export function Sidebar() {
                       </div>
                       <span className={cn("flex-1 text-left text-sm font-medium", activeHome?.id === home.id ? "text-primary" : "text-gray-700 dark:text-gray-300")}>
                         {home.name}
+                        {((home.isExpired || (home.accessExpiresAt && new Date(home.accessExpiresAt) < new Date()))) && (
+                          <span className="ml-2 text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded-md font-bold uppercase">
+                            Süresi Doldu
+                          </span>
+                        )}
                       </span>
                       {activeHome?.id === home.id && <Check size={16} className="text-primary" />}
                     </button>
@@ -209,7 +214,7 @@ export function Sidebar() {
             {visibleNavItems.map((item) => {
               const isActive = pathname === item.href ||
                 (item.href !== '/dashboard' && pathname.startsWith(item.href));
-              
+
               // Device count from DeviceContext
               const badge = item.href === '/dashboard/devices' ? deviceCount : item.badge;
 

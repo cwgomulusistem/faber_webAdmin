@@ -22,6 +22,8 @@ export interface HomePermission {
   name: string;
   memberRole: string; // OWNER | ADMIN | MEMBER | GUEST
   defaultPermission: string; // VIEW_ONLY | CONTROL | FULL
+  isExpired: boolean;
+  accessExpiresAt?: string;
   menuPermissions: Record<string, boolean>;
   devicePermissions: Record<string, string>; // deviceId -> level
   roomPermissions: Record<string, string>; // roomId -> level
@@ -37,6 +39,7 @@ export interface PermissionContextType {
   bundle: PermissionBundle | null;
   isLoading: boolean;
   version: number;
+  isExpired: boolean;
   can: (action: PermissionAction, subject: PermissionSubject, target?: string) => boolean;
   refetch: (forceRefresh?: boolean) => Promise<void>;
   getHomePermission: (homeId?: string) => HomePermission | null;
@@ -50,8 +53,8 @@ export interface PermissionContextType {
 
 // ==================== Constants ====================
 
-const CACHE_KEY = 'faber_permissions';
-const VERSION_KEY = 'faber_permissions_version';
+const CACHE_KEY = 'faber_permissions_v4';
+const VERSION_KEY = 'faber_permissions_version_v4';
 
 // Default menu permissions for new users
 export const DEFAULT_MENU_PERMISSIONS: Record<string, boolean> = {
@@ -156,7 +159,7 @@ export function PermissionProvider({ children }: { children: React.ReactNode }) 
 
     try {
       const headers: Record<string, string> = {};
-      
+
       // Send cached version for 304 Not Modified check
       if (!forceRefresh && typeof window !== 'undefined') {
         const cachedVersion = localStorage.getItem(VERSION_KEY);
@@ -344,8 +347,21 @@ export function PermissionProvider({ children }: { children: React.ReactNode }) 
       id: activeHome.id,
       name: activeHome.name,
       memberRole: activeHome.memberRole,
+      isExpired: activeHome.isExpired,
       menuPermissions: activeHome.menuPermissions
     });
+
+    // Check if access is expired (OWNER and ADMIN never expire)
+    const isExpiredLocally = activeHome.accessExpiresAt && new Date(activeHome.accessExpiresAt) < new Date();
+    const isActuallyExpired = (activeHome.isExpired || !!isExpiredLocally) && !['OWNER', 'ADMIN'].includes(activeHome.memberRole);
+
+    if (isActuallyExpired) {
+      // Whitelist 'dashboard' menu so user can see the "Access Expired" alert
+      if (subject === 'menu' && target === 'dashboard' && action === 'view') {
+        return true;
+      }
+      return false;
+    }
 
     // OWNER role has full access
     if (activeHome.memberRole === 'OWNER') {
@@ -398,20 +414,45 @@ export function PermissionProvider({ children }: { children: React.ReactNode }) 
   }, [bundle, getHomePermission, getEffectivePermission, canManageScenes, canManageMembers]);
 
   // Memoized context value
+  // Compute effective expiration state
+  const isExpired = useMemo(() => {
+    const homePerm = getHomePermission();
+    if (!homePerm) return false;
+    if (['OWNER', 'ADMIN'].includes(homePerm.memberRole)) return false;
+
+    const isExpiredLocally = homePerm.accessExpiresAt && new Date(homePerm.accessExpiresAt) < new Date();
+    return homePerm.isExpired || !!isExpiredLocally;
+  }, [getHomePermission]);
+
+  const version = bundle?.permissionVersion || 0;
+
   const value = useMemo<PermissionContextType>(() => ({
     bundle,
     isLoading,
-    version: bundle?.permissionVersion || 0,
+    version,
+    isExpired,
     can,
     refetch: fetchPermissions,
     getHomePermission,
-    // PBAC v3.0 helpers
     canManageDevices,
     canManageScenes,
     canManageMembers,
     isDeviceVisible,
     getEffectivePermission,
-  }), [bundle, isLoading, can, fetchPermissions, getHomePermission, canManageDevices, canManageScenes, canManageMembers, isDeviceVisible, getEffectivePermission]);
+  }), [
+    bundle,
+    isLoading,
+    version,
+    isExpired,
+    can,
+    fetchPermissions,
+    getHomePermission,
+    canManageDevices,
+    canManageScenes,
+    canManageMembers,
+    isDeviceVisible,
+    getEffectivePermission,
+  ]);
 
   return (
     <PermissionContext.Provider value={value}>
