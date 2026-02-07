@@ -44,7 +44,8 @@ export function UserSidebar({ onSelectUser, selectedUserId }: { onSelectUser?: (
 
                 const res = await api.get(`/users/sub?homeId=${homeId}`);
 
-                const mapped = res.data.subUsers.map((u: any) => ({
+                const subUsersList = res.data?.subUsers || [];
+                const mapped = subUsersList.map((u: any) => ({
                     id: u.id,
                     name: u.fullName,
                     role: u.username,

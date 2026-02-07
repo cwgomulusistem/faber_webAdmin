@@ -2,21 +2,22 @@
 // Type definitions for authentication system
 
 export enum UserRole {
-  MASTER = 'master',
-  SUB = 'sub',
+  MASTER = 'MASTER',
+  SUB = 'SUB',
   ADMIN = 'admin',
 }
 
 export interface User {
   id: string;
   email: string;
-  fullName?: string;
+  fullName: string;
   phone?: string;
   avatar?: string;
-  role: UserRole;
-  provider: AuthProvider;
-  language: string;
-  timezone: string;
+  role: UserRole; // 'MASTER' | 'SUB' | 'admin'
+  language?: string;
+  timezone?: string;
+  isPhoneVerified: boolean;
+  isEmailVerified: boolean;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -129,7 +130,7 @@ export interface AuthContextType extends AuthState {
 
 // ==================== LOGIN ERROR RESPONSE ====================
 
-export type LoginErrorCode = 
+export type LoginErrorCode =
   | 'INVALID_CREDENTIALS'
   | 'ACCOUNT_LOCKED'
   | '2FA_REQUIRED'

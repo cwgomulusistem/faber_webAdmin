@@ -145,6 +145,24 @@ export function InviteMemberModal({ open, onClose, onSuccess }: InviteMemberModa
                         <p className="text-xs text-slate-500 mt-1">Min. 6 characters</p>
                     </div>
 
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Role & Access</label>
+                        <select
+                            value={payload.role}
+                            onChange={e => setPayload({ ...payload, role: e.target.value })}
+                            className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-transparent focus:ring-2 focus:ring-primary outline-none text-slate-700 dark:text-gray-200"
+                        >
+                            <option value="MEMBER">Sakin (Standart)</option>
+                            <option value="ADMIN">Admin (Yönetici)</option>
+                            <option value="GUEST">Misafir (Kısıtlı)</option>
+                        </select>
+                        <p className="text-xs text-slate-500 mt-1">
+                            {payload.role === 'ADMIN' && "Can manage devices, rooms, and invited members."}
+                            {payload.role === 'MEMBER' && "Can control devices but cannot manage settings."}
+                            {payload.role === 'GUEST' && "Limited access, possibly with expiration."}
+                        </p>
+                    </div>
+
                     {/* Error Message Display */}
                     {/* Note: In a real app we'd use a state for this */}
                     <div id="form-error" className="text-red-500 text-sm hidden"></div>

@@ -4,6 +4,7 @@ import React from 'react';
 import { useRouter } from 'next/navigation';
 import { MoreVertical, Home, Shield, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { UserRole } from '@/types/auth.types';
 
 interface HomeInfo {
     id: string;
@@ -25,7 +26,8 @@ interface Member {
 
 export function MemberCard({ member }: { member: Member }) {
     const router = useRouter();
-    const isMaster = member.type === 'master' || member.role === 'Admin';
+    const memberType = member.type as unknown as string;
+    const isMaster = memberType === UserRole.MASTER || memberType === 'master' || memberType === 'MASTER' || member.role === 'Admin';
 
     const handleManageAccess = () => {
         if (isMaster) {
@@ -55,8 +57,8 @@ export function MemberCard({ member }: { member: Member }) {
                     <div
                         className={cn(
                             "size-20 rounded-full bg-cover bg-center border-4 shadow-inner flex items-center justify-center text-2xl font-bold",
-                            isMaster 
-                                ? "border-primary/30 bg-gradient-to-br from-primary/20 to-blue-500/20 text-primary" 
+                            isMaster
+                                ? "border-primary/30 bg-gradient-to-br from-primary/20 to-blue-500/20 text-primary"
                                 : "border-slate-50 dark:border-slate-700 bg-slate-200 text-slate-500"
                         )}
                         style={member.avatar ? { backgroundImage: `url("${member.avatar}")` } : {}}
@@ -84,8 +86,8 @@ export function MemberCard({ member }: { member: Member }) {
                         <p className="text-xs text-slate-400 mb-1.5">Kayıtlı Evler:</p>
                         <div className="flex flex-wrap justify-center gap-1">
                             {member.homes.map(home => (
-                                <span 
-                                    key={home.id} 
+                                <span
+                                    key={home.id}
                                     className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-blue-50 dark:bg-blue-900/20 text-xs text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-800"
                                 >
                                     <Home size={10} />
@@ -99,13 +101,13 @@ export function MemberCard({ member }: { member: Member }) {
                 <p className="mt-3 text-sm text-slate-500 dark:text-slate-400 line-clamp-2">
                     {isMaster ? 'Tam yetki (değiştirilemez)' : (member.permissions || 'Standart erişim')}
                 </p>
-                <button 
+                <button
                     onClick={handleManageAccess}
                     disabled={isMaster}
                     className={cn(
                         "mt-4 w-full py-2.5 px-4 rounded-lg text-sm font-bold transition-colors flex items-center justify-center gap-2",
-                        isMaster 
-                            ? "bg-slate-50 dark:bg-slate-800 text-slate-400 cursor-not-allowed" 
+                        isMaster
+                            ? "bg-slate-50 dark:bg-slate-800 text-slate-400 cursor-not-allowed"
                             : "bg-slate-100 dark:bg-slate-700 hover:bg-primary hover:text-white dark:hover:bg-primary text-slate-700 dark:text-slate-200"
                     )}
                 >

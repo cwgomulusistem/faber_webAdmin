@@ -16,8 +16,9 @@ export default function PermissionsPage() {
     const router = useRouter();
     const [selectedUser, setSelectedUser] = React.useState<any>(null);
 
-    // Check if user is master
-    const isMaster = user && 'role' in user && user.role === UserRole.MASTER;
+    // Check if user is master - robust check
+    const userRole = user?.role as unknown as string;
+    const isMaster = user && 'role' in user && (userRole === UserRole.MASTER || userRole === 'master' || userRole === 'MASTER');
 
     useEffect(() => {
         if (!authLoading && !isMaster) {

@@ -67,7 +67,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [userType, setUserType] = useState<'user' | 'admin' | null>(null);
-  
+
   // Pre-auth state for 2FA flow
   const [isPreAuth, setIsPreAuth] = useState(false);
   const [preAuthToken, setPreAuthToken] = useState<string | null>(null);
@@ -252,8 +252,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [handleAuthResult]);
 
   // Verify 2FA with pre-auth token (new flow with rememberMe support)
-  const verify2FAWithPreAuth = useCallback(async (payload: { 
-    code: string; 
+  const verify2FAWithPreAuth = useCallback(async (payload: {
+    code: string;
     rememberMe?: boolean;
     hardwareFingerprint?: string;
   }) => {
@@ -346,6 +346,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setRefreshToken(null);
       setUserType(null);
       setError(null);
+
+      // Clear permission cache to prevent stale data for next user
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('faber_permissions');
+        localStorage.removeItem('faber_permissions_version');
+        // Clear active home selection to force fresh selection
+        localStorage.removeItem('activeHomeId');
+      }
     }
   }, []);
 

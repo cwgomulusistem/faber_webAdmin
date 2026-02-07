@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { 
-    ArrowLeft, Save, Shield, Smartphone, DoorOpen, LayoutGrid, 
+import {
+    ArrowLeft, Save, Shield, Smartphone, DoorOpen, LayoutGrid,
     ChevronDown, User, Home, Loader2, AlertCircle, Check, X,
     Eye, Settings, Lock, Unlock
 } from 'lucide-react';
@@ -100,7 +100,7 @@ export default function SubUserDetailPage() {
             // Find the specific user
             const subUsers = userRes.data.subUsers || [];
             const foundUser = subUsers.find((u: SubUser) => u.id === userId);
-            
+
             if (!foundUser) {
                 toast.error('Kullanıcı bulunamadı');
                 router.push('/dashboard/members');
@@ -111,8 +111,19 @@ export default function SubUserDetailPage() {
             setDevices(devicesRes.data?.data || []);
             setRooms(roomsRes.data?.data || []);
 
+
             // Initialize local permission state
-            setMenuPermissions(foundUser.menuPermissions || {});
+            // Map boolean menu permissions (backend) to PermissionLevel (frontend)
+            const menuPerms: Record<string, PermissionLevel> = {};
+            if (foundUser.menuPermissions) {
+                Object.entries(foundUser.menuPermissions).forEach(([key, val]) => {
+                    // Backend returns boolean for menu permissions. 
+                    // true means access granted (we map to 'VIEW_ONLY' as base level)
+                    if (val === true) menuPerms[key] = 'VIEW_ONLY';
+                });
+            }
+            setMenuPermissions(menuPerms);
+
             setDevicePermissions(foundUser.devicePermissions || {});
             setRoomPermissions(foundUser.roomPermissions || {});
             setDefaultPermission(foundUser.defaultPermission || 'CONTROL');
@@ -132,7 +143,7 @@ export default function SubUserDetailPage() {
     // Track changes
     useEffect(() => {
         if (!user) return;
-        
+
         const menuChanged = JSON.stringify(menuPermissions) !== JSON.stringify(user.menuPermissions || {});
         const deviceChanged = JSON.stringify(devicePermissions) !== JSON.stringify(user.devicePermissions || {});
         const roomChanged = JSON.stringify(roomPermissions) !== JSON.stringify(user.roomPermissions || {});
@@ -145,11 +156,19 @@ export default function SubUserDetailPage() {
         if (!user) return;
         setSaving(true);
         try {
-            await api.patch(`/users/sub/${user.id}/permissions/menu`, {
-                permissions: menuPermissions
+            // Convert PermissionLevel to boolean for menu permissions
+            const menuPermsPayload: Record<string, boolean> = {};
+            Object.entries(menuPermissions).forEach(([key, val]) => {
+                if (val) menuPermsPayload[key] = true;
+            });
+
+            await api.patch(`/users/sub/${user.id}/menu-permissions`, {
+                menuPermissions: menuPermsPayload
             });
             toast.success('Menü izinleri kaydedildi');
-            setUser(prev => prev ? { ...prev, menuPermissions } : null);
+
+            // Start reloading user to get fresh state from backend
+            fetchData();
         } catch (err) {
             console.error('Failed to save menu permissions:', err);
             toast.error('Menü izinleri kaydedilemedi');
@@ -162,11 +181,11 @@ export default function SubUserDetailPage() {
         if (!user) return;
         setSaving(true);
         try {
-            await api.patch(`/users/sub/${user.id}/permissions/device`, {
-                permissions: devicePermissions
+            await api.patch(`/users/sub/${user.id}/device-permissions`, {
+                devicePermissions: devicePermissions
             });
             toast.success('Cihaz izinleri kaydedildi');
-            setUser(prev => prev ? { ...prev, devicePermissions } : null);
+            fetchData();
         } catch (err) {
             console.error('Failed to save device permissions:', err);
             toast.error('Cihaz izinleri kaydedilemedi');
@@ -179,11 +198,11 @@ export default function SubUserDetailPage() {
         if (!user) return;
         setSaving(true);
         try {
-            await api.patch(`/users/sub/${user.id}/permissions/room`, {
-                permissions: roomPermissions
+            await api.patch(`/users/sub/${user.id}/room-permissions`, {
+                roomPermissions: roomPermissions
             });
             toast.success('Oda izinleri kaydedildi');
-            setUser(prev => prev ? { ...prev, roomPermissions } : null);
+            fetchData();
         } catch (err) {
             console.error('Failed to save room permissions:', err);
             toast.error('Oda izinleri kaydedilemedi');
@@ -195,18 +214,19 @@ export default function SubUserDetailPage() {
     const handleSaveAll = async () => {
         setSaving(true);
         try {
+            // Convert PermissionLevel to boolean for menu permissions
+            const menuPermsPayload: Record<string, boolean> = {};
+            Object.entries(menuPermissions).forEach(([key, val]) => {
+                if (val) menuPermsPayload[key] = true;
+            });
+
             await Promise.all([
-                api.patch(`/users/sub/${user!.id}/permissions/menu`, { permissions: menuPermissions }),
-                api.patch(`/users/sub/${user!.id}/permissions/device`, { permissions: devicePermissions }),
-                api.patch(`/users/sub/${user!.id}/permissions/room`, { permissions: roomPermissions }),
+                api.patch(`/users/sub/${user!.id}/menu-permissions`, { menuPermissions: menuPermsPayload }),
+                api.patch(`/users/sub/${user!.id}/device-permissions`, { devicePermissions: devicePermissions }),
+                api.patch(`/users/sub/${user!.id}/room-permissions`, { roomPermissions: roomPermissions }),
             ]);
             toast.success('Tüm izinler kaydedildi');
-            setUser(prev => prev ? { 
-                ...prev, 
-                menuPermissions, 
-                devicePermissions, 
-                roomPermissions 
-            } : null);
+            fetchData();
             setHasChanges(false);
         } catch (err) {
             console.error('Failed to save permissions:', err);
@@ -257,7 +277,7 @@ export default function SubUserDetailPage() {
             <div className="flex flex-col h-full bg-background-light dark:bg-background-dark items-center justify-center gap-4">
                 <AlertCircle className="w-16 h-16 text-red-500" />
                 <h2 className="text-xl font-bold text-gray-900 dark:text-white">Kullanıcı Bulunamadı</h2>
-                <button 
+                <button
                     onClick={() => router.push('/dashboard/members')}
                     className="px-4 py-2 bg-primary text-white rounded-lg"
                 >
@@ -272,8 +292,8 @@ export default function SubUserDetailPage() {
             {/* Header */}
             <header className="h-16 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-6 shrink-0 z-10">
                 <div className="flex items-center gap-4">
-                    <button 
-                        onClick={() => router.back()} 
+                    <button
+                        onClick={() => router.back()}
                         className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
                     >
                         <ArrowLeft size={20} className="text-gray-500" />
@@ -337,18 +357,7 @@ export default function SubUserDetailPage() {
                             </div>
 
                             <div className="w-full md:w-auto">
-                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">
-                                    Varsayılan İzin Seviyesi
-                                </label>
-                                <select
-                                    value={defaultPermission}
-                                    onChange={(e) => setDefaultPermission(e.target.value as PermissionLevel)}
-                                    className="w-full md:w-48 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm font-medium text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-primary/20"
-                                >
-                                    {PERMISSION_LEVELS.map(level => (
-                                        <option key={level.value} value={level.value}>{level.label}</option>
-                                    ))}
-                                </select>
+                                {/* Varsayılan izin seviyesi backend tarafında sabit olduğu için gizlendi */}
                             </div>
                         </div>
                     </section>
@@ -393,42 +402,33 @@ export default function SubUserDetailPage() {
                                         </div>
 
                                         <div className="flex items-center gap-2">
-                                            {hasAccess ? (
-                                                <>
-                                                    <select
-                                                        value={currentLevel}
-                                                        onChange={(e) => setMenuPermissions(prev => ({
+                                            <button
+                                                onClick={() => {
+                                                    if (hasAccess) {
+                                                        const { [item.key]: _, ...rest } = menuPermissions;
+                                                        setMenuPermissions(rest);
+                                                    } else {
+                                                        setMenuPermissions(prev => ({
                                                             ...prev,
-                                                            [item.key]: e.target.value as PermissionLevel
-                                                        }))}
-                                                        className="text-sm px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 outline-none"
-                                                    >
-                                                        {PERMISSION_LEVELS.map(level => (
-                                                            <option key={level.value} value={level.value}>{level.label}</option>
-                                                        ))}
-                                                    </select>
-                                                    <button
-                                                        onClick={() => {
-                                                            const { [item.key]: _, ...rest } = menuPermissions;
-                                                            setMenuPermissions(rest);
-                                                        }}
-                                                        className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500 transition-colors"
-                                                    >
-                                                        <X size={16} />
-                                                    </button>
-                                                </>
-                                            ) : (
-                                                <button
-                                                    onClick={() => setMenuPermissions(prev => ({
-                                                        ...prev,
-                                                        [item.key]: 'VIEW_ONLY'
-                                                    }))}
-                                                    className="flex items-center gap-1 text-sm text-primary hover:text-blue-600 font-medium"
-                                                >
-                                                    <Check size={14} />
-                                                    <span>Erişim Ver</span>
-                                                </button>
-                                            )}
+                                                            [item.key]: 'VIEW_ONLY'
+                                                        }));
+                                                    }
+                                                }}
+                                                className={cn(
+                                                    "relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary/20",
+                                                    hasAccess ? "bg-primary" : "bg-gray-200 dark:bg-gray-700"
+                                                )}
+                                            >
+                                                <span
+                                                    className={cn(
+                                                        "inline-block h-4 w-4 transform rounded-full bg-white transition-transform",
+                                                        hasAccess ? "translate-x-6" : "translate-x-1"
+                                                    )}
+                                                />
+                                            </button>
+                                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300 min-w-[3rem]">
+                                                {hasAccess ? 'Açık' : 'Kapalı'}
+                                            </span>
                                         </div>
                                     </div>
                                 );

@@ -42,11 +42,20 @@ export default function MembersPage() {
     const { user, isLoading: authLoading } = useAuth();
     const router = useRouter();
 
-    // Check if user is master (can invite)
-    const isMaster = user && 'role' in user && user.role === UserRole.MASTER;
-    
+    // Check if user is master (can invite) - robust check
+    const userRole = user?.role as unknown as string;
+    const isMaster = user && 'role' in user && (userRole === UserRole.MASTER || userRole === 'master' || userRole === 'MASTER');
+
     // Prevent double fetching in React StrictMode
     const hasFetchedRef = useRef(false);
+
+    console.log('MembersPage Debug:', {
+        user,
+        role: user?.role,
+        UserRole_MASTER: UserRole.MASTER,
+        isMaster,
+        authLoading
+    });
 
     useEffect(() => {
         if (!authLoading && !isMaster) {
@@ -90,11 +99,11 @@ export default function MembersPage() {
                                 id: u.id,
                                 name: u.fullName || u.name || 'İsimsiz',
                                 email: u.email,
-                                role: u.role === 'master' ? 'Admin' : 'Sakin',
+                                role: ((u.role as unknown as string) === UserRole.MASTER || (u.role as unknown as string) === 'master' || (u.role as unknown as string) === 'MASTER') ? 'Admin' : 'Sakin',
                                 type: u.role,
                                 status: 'Evde',
                                 avatar: u.avatar,
-                                permissions: u.role === 'master' ? 'Tam yetki' : 'Standart erişim',
+                                permissions: ((u.role as unknown as string) === UserRole.MASTER || (u.role as unknown as string) === 'master' || (u.role as unknown as string) === 'MASTER') ? 'Tam yetki' : 'Standart erişim',
                                 isGuest: !!u.accessExpiresAt,
                                 homes: [{ id: home.id, name: home.name }]
                             });
@@ -130,8 +139,9 @@ export default function MembersPage() {
 
         // Role filter
         let matchesRole = true;
-        if (filter === 'Adminler') matchesRole = member.type === 'master';
-        else if (filter === 'Sakinler') matchesRole = member.type !== 'master' && !member.isGuest;
+        const memberType = member.type as unknown as string;
+        if (filter === 'Adminler') matchesRole = (memberType === UserRole.MASTER || memberType === 'master' || memberType === 'MASTER');
+        else if (filter === 'Sakinler') matchesRole = (memberType !== UserRole.MASTER && memberType !== 'master' && memberType !== 'MASTER') && !member.isGuest;
         else if (filter === 'Misafirler') matchesRole = member.isGuest;
 
         // Home filter
