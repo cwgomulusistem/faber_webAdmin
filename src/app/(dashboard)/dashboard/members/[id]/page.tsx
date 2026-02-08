@@ -106,14 +106,12 @@ export default function SubUserDetailPage() {
 
             // Fetch user details, devices, and rooms in parallel
             const [userRes, devicesRes, roomsRes] = await Promise.all([
-                api.get(`/users/sub?homeId=${homeId}`),
+                api.get(`/users/sub/${userId}`),
                 api.get(`/homes/${homeId}/devices`),
                 api.get(`/homes/${homeId}/rooms`)
             ]);
 
-            // Find the specific user
-            const subUsers = userRes.data.subUsers || [];
-            const foundUser = subUsers.find((u: SubUser) => u.id === userId);
+            const foundUser = userRes.data;
 
             if (!foundUser) {
                 toast.error('Kullanıcı bulunamadı');
@@ -206,7 +204,7 @@ export default function SubUserDetailPage() {
                 devicePermissions: devicePermissions
             });
             toast.success('Cihaz izinleri kaydedildi');
-            fetchData();
+            await fetchData();
         } catch (err) {
             console.error('Failed to save device permissions:', err);
             toast.error('Cihaz izinleri kaydedilemedi');
@@ -223,7 +221,7 @@ export default function SubUserDetailPage() {
                 roomPermissions: roomPermissions
             });
             toast.success('Oda izinleri kaydedildi');
-            fetchData();
+            await fetchData();
         } catch (err) {
             console.error('Failed to save room permissions:', err);
             toast.error('Oda izinleri kaydedilemedi');
@@ -248,7 +246,7 @@ export default function SubUserDetailPage() {
                 api.patch(`/users/sub/${user!.id}`, { accessExpiresAt: accessExpiresAt || null }), // Update expiration
             ]);
             toast.success('Tüm izinler kaydedildi');
-            fetchData();
+            await fetchData();
             setHasChanges(false);
         } catch (err) {
             console.error('Failed to save permissions:', err);
@@ -283,9 +281,12 @@ export default function SubUserDetailPage() {
     const handleSavePin = async (pin: string) => {
         if (!user) return;
         try {
-            await api.patch(`/users/sub/${user.id}`, { pin });
+            const res = await api.patch(`/users/sub/${user.id}`, { pin });
             toast.success('PIN kaydedildi');
-            fetchData();
+            if (res.data) {
+                setUser(res.data);
+            }
+            await fetchData();
         } catch (err) {
             console.error('Failed to save PIN:', err);
             toast.error('PIN kaydedilemedi');
@@ -296,9 +297,17 @@ export default function SubUserDetailPage() {
     // Handler for removing PIN
     const handleRemovePin = async () => {
         if (!user) return;
-        await api.patch(`/users/sub/${user.id}`, { pin: '' });
-        toast.success('PIN kaldırıldı');
-        fetchData();
+        try {
+            const res = await api.patch(`/users/sub/${user.id}`, { pin: '' });
+            toast.success('PIN kaldırıldı');
+            if (res.data) {
+                setUser(res.data);
+            }
+            await fetchData();
+        } catch (err) {
+            console.error('Failed to remove PIN:', err);
+            toast.error('PIN kaldırılamadı');
+        }
     };
 
     // Handler for saving schedule

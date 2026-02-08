@@ -34,14 +34,16 @@ export function ScheduleSelector({ value, onChange, disabled }: ScheduleSelector
     };
 
     const handleDayToggle = (day: string) => {
-        const newDays = value.days.includes(day)
-            ? value.days.filter(d => d !== day)
-            : [...value.days, day];
+        const currentDays = value.days || [];
+        const newDays = currentDays.includes(day)
+            ? currentDays.filter(d => d !== day)
+            : [...currentDays, day];
         onChange({ ...value, days: newDays });
     };
 
     const handleSelectAllDays = () => {
-        if (value.days.length === 7) {
+        const currentDays = value.days || [];
+        if (currentDays.length === 7) {
             onChange({ ...value, days: [] });
         } else {
             onChange({ ...value, days: DAYS.map(d => d.key) });
@@ -83,15 +85,16 @@ export function ScheduleSelector({ value, onChange, disabled }: ScheduleSelector
                     <div className="flex items-center justify-between">
                         <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Aktif Günler</label>
                         <button
+                            type="button"
                             onClick={handleSelectAllDays}
                             className="text-xs text-primary hover:underline font-semibold"
                         >
-                            {value.days.length === 7 ? 'Tümünü Kaldır' : 'Tümünü Seç'}
+                            {(value.days?.length || 0) === 7 ? 'Tümünü Kaldır' : 'Tümünü Seç'}
                         </button>
                     </div>
                     <div className="grid grid-cols-4 sm:flex sm:flex-wrap gap-2">
                         {DAYS.map((day) => {
-                            const isActive = value.days.includes(day.key);
+                            const isActive = (value.days || []).includes(day.key);
                             return (
                                 <button
                                     key={day.key}
