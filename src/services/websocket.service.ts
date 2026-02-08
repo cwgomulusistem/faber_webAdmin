@@ -189,10 +189,13 @@ class WebSocketService {
       // v3.1: Send auth message with token (NOT in URL for security)
       // Fix: Check readyState to avoid "Still in CONNECTING state" error due to race conditions
       if (this.authToken && this.ws?.readyState === WebSocket.OPEN) {
+        console.log('WebSocket: Auth token found, sending...');
         this.ws.send(JSON.stringify({
           type: 'auth',
           payload: { token: this.authToken }
         }));
+      } else {
+        console.warn('WebSocket: Cannot send auth - token:', !!this.authToken, 'state:', this.ws?.readyState);
       }
 
       this.isConnecting = false;
@@ -228,7 +231,8 @@ class WebSocketService {
     };
 
     this.ws.onerror = (error) => {
-      console.error('WebSocket: Error -', error);
+      console.error('WebSocket: Internal Error Event:', error);
+      // In high-security environments, detail may be hidden in error object
       this.isConnecting = false;
     };
 

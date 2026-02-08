@@ -154,10 +154,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         // Auto-select home if user has exactly one
         if (result.result.homes && result.result.homes.length === 1) {
-          localStorage.setItem('activeHomeId', result.result.homes[0].id);
+          localStorage.setItem('faber_active_home_id', JSON.stringify(result.result.homes[0].id));
         } else if (result.result.homes && result.result.homes.length > 1) {
           // Multiple homes - clear stale selection, let user pick
-          localStorage.removeItem('activeHomeId');
+          localStorage.removeItem('faber_active_home_id');
         }
       }
     } catch (err) {
@@ -349,10 +349,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // Clear permission cache to prevent stale data for next user
       if (typeof window !== 'undefined') {
-        localStorage.removeItem('faber_permissions');
-        localStorage.removeItem('faber_permissions_version');
+        if (user?.id) {
+          localStorage.removeItem(`faber_permissions_v4_${user.id}`);
+          localStorage.removeItem(`faber_permissions_version_v4_${user.id}`);
+        }
+        localStorage.removeItem('faber_permissions_v4');
+        localStorage.removeItem('faber_permissions_version_v4');
         // Clear active home selection to force fresh selection
-        localStorage.removeItem('activeHomeId');
+        localStorage.removeItem('faber_active_home_id');
       }
     }
   }, []);

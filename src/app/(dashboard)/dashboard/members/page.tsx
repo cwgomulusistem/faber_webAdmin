@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Search, Home, Key, Clock, Bell, Users, Building2, X } from 'lucide-react';
+import { Plus, Search, Home, Key, Clock, Bell, Users, Building2, X, Settings } from 'lucide-react';
 import api from '@/services/api.service';
 import { cn } from '@/lib/utils';
 import { InviteMemberModal } from '@/components/members/InviteMemberModal';
@@ -171,15 +171,23 @@ export default function MembersPage() {
     return (
         <div className="flex flex-col h-full bg-background-light dark:bg-background-dark overflow-hidden">
             {/* Standard Header */}
-            <header className="h-16 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-6 shrink-0 z-10">
-                <div className="flex items-center gap-6">
+            <header className="min-h-16 h-auto md:h-16 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 flex flex-col md:flex-row items-center justify-between px-4 md:px-6 py-4 md:py-0 shrink-0 z-10 gap-4">
+                <div className="flex items-center justify-between w-full md:w-auto gap-6">
                     <div className="flex flex-col">
                         <h1 className="text-lg font-bold text-gray-900 dark:text-white">Tüm Üyeler</h1>
                         <span className="text-xs text-gray-500">{homes.length} ev, {members.length} üye</span>
                     </div>
+
+                    <div className="flex md:hidden items-center gap-2">
+                        <ConnectionStatus />
+                        <button className="relative p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                            <Bell className="w-5 h-5 text-gray-500" />
+                            <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
+                        </button>
+                    </div>
                 </div>
 
-                <div className="flex-1 max-w-md mx-8 hidden md:block">
+                <div className="flex-1 max-w-md w-full md:mx-8">
                     <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                         <input
@@ -188,7 +196,7 @@ export default function MembersPage() {
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             className={cn(
-                                "w-full pl-10 pr-4 py-2 rounded-xl text-sm",
+                                "w-full pl-10 pr-4 py-2.5 md:py-2 rounded-xl text-sm",
                                 "bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700",
                                 "focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none",
                                 "placeholder-gray-400 text-gray-900 dark:text-white transition-all"
@@ -197,13 +205,13 @@ export default function MembersPage() {
                     </div>
                 </div>
 
-                <div className="flex items-center gap-4">
-                    <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-50 dark:bg-gray-800">
+                <div className="flex items-center gap-3 w-full md:w-auto shrink-0">
+                    <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-50 dark:bg-gray-800">
                         <span className="text-xs font-medium text-gray-500">Sistem Durumu</span>
                         <ConnectionStatus />
                     </div>
 
-                    <button className="relative p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                    <button className="hidden md:block relative p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
                         <Bell className="w-5 h-5 text-gray-500" />
                         <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
                     </button>
@@ -211,10 +219,10 @@ export default function MembersPage() {
                     {isMaster && (
                         <button
                             onClick={() => setIsInviteModalOpen(true)}
-                            className="flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-xl bg-primary hover:bg-blue-600 text-white px-4 py-2 shadow-sm transition-all active:scale-95 text-sm font-semibold"
+                            className="flex-1 md:flex-initial flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-primary hover:bg-blue-600 text-white px-4 py-2.5 md:py-2 shadow-sm transition-all active:scale-95 text-sm font-semibold h-10 md:h-auto"
                         >
                             <Plus size={18} />
-                            <span>Üye Davet Et</span>
+                            <span className="whitespace-nowrap">Üye Davet</span>
                         </button>
                     )}
                 </div>
@@ -224,15 +232,15 @@ export default function MembersPage() {
                 <div className="max-w-[1200px] mx-auto flex flex-col gap-6 w-full">
 
                     {/* Filters Row */}
-                    <div className="flex flex-col md:flex-row gap-4">
+                    <div className="flex flex-col lg:flex-row gap-4 lg:items-center">
                         {/* Role Filters */}
-                        <div className="flex gap-2 overflow-x-auto pb-2 lg:pb-0 no-scrollbar">
+                        <div className="flex gap-2 overflow-x-auto pb-1 lg:pb-0 no-scrollbar">
                             {['Tümü', 'Adminler', 'Sakinler', 'Misafirler'].map((f) => (
                                 <button
                                     key={f}
                                     onClick={() => setFilter(f)}
                                     className={cn(
-                                        "flex items-center px-4 h-10 rounded-xl text-sm font-medium whitespace-nowrap transition-all",
+                                        "flex items-center px-4 h-11 lg:h-10 rounded-xl text-sm font-medium whitespace-nowrap transition-all",
                                         filter === f
                                             ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold"
                                             : "bg-white dark:bg-surface-dark ring-1 ring-slate-200 dark:ring-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
@@ -244,13 +252,13 @@ export default function MembersPage() {
                         </div>
 
                         {/* Home Filter Dropdown */}
-                        <div className="flex items-center gap-2">
-                            <Building2 size={16} className="text-slate-400" />
+                        <div className="flex items-center gap-2 w-full lg:w-auto">
+                            <Building2 size={18} className="text-slate-400 shrink-0" />
                             <select
                                 value={homeFilter}
                                 onChange={(e) => setHomeFilter(e.target.value)}
                                 className={cn(
-                                    "px-3 py-2 rounded-xl text-sm font-medium",
+                                    "flex-1 lg:flex-initial px-4 py-2.5 lg:py-2 rounded-xl text-sm font-medium h-11 lg:h-10",
                                     "bg-white dark:bg-surface-dark border border-slate-200 dark:border-slate-700",
                                     "text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-primary/20"
                                 )}
@@ -386,6 +394,17 @@ export default function MembersPage() {
                                                             </span>
                                                         ))}
                                                     </div>
+
+                                                    <button
+                                                        onClick={() => {
+                                                            const homeId = guest.homes?.[0]?.id;
+                                                            router.push(`/dashboard/members/${guest.id}${homeId ? `?homeId=${homeId}` : ''}`);
+                                                        }}
+                                                        className="p-2 text-slate-400 hover:text-primary transition-colors"
+                                                        title="Erişimi Yönet"
+                                                    >
+                                                        <Settings size={20} />
+                                                    </button>
 
                                                     <button
                                                         onClick={async () => {

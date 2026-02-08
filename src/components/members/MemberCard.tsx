@@ -47,7 +47,8 @@ export function MemberCard({ member, onDeleteSuccess }: { member: Member, onDele
 
     const handleManageAccess = () => {
         if (isMaster) return;
-        router.push(`/dashboard/members/${member.id}`);
+        const homeId = member.homes?.[0]?.id;
+        router.push(`/dashboard/members/${member.id}${homeId ? `?homeId=${homeId}` : ''}`);
     };
 
     const handleDeleteMember = async () => {

@@ -135,16 +135,19 @@ export function PermissionProvider({ children }: { children: React.ReactNode }) 
 
   // Fetch permissions from API with caching
   const fetchPermissions = useCallback(async (forceRefresh = false) => {
-    if (!isAuthenticated) {
+    if (!isAuthenticated || !user?.id) {
       setBundle(null);
       setIsLoading(false);
       return;
     }
 
+    const userCacheKey = `faber_permissions_v4_${user.id}`;
+    const userVersionKey = `faber_permissions_version_v4_${user.id}`;
+
     // Check cache first (unless force refresh)
     if (!forceRefresh && typeof window !== 'undefined') {
-      const cachedVersion = localStorage.getItem(VERSION_KEY);
-      const cachedData = localStorage.getItem(CACHE_KEY);
+      const cachedVersion = localStorage.getItem(userVersionKey);
+      const cachedData = localStorage.getItem(userCacheKey);
 
       if (cachedVersion && cachedData) {
         try {
@@ -162,7 +165,7 @@ export function PermissionProvider({ children }: { children: React.ReactNode }) 
 
       // Send cached version for 304 Not Modified check
       if (!forceRefresh && typeof window !== 'undefined') {
-        const cachedVersion = localStorage.getItem(VERSION_KEY);
+        const cachedVersion = localStorage.getItem(userVersionKey);
         if (cachedVersion) {
           headers['X-Permission-Version'] = cachedVersion;
         }
@@ -172,7 +175,7 @@ export function PermissionProvider({ children }: { children: React.ReactNode }) 
 
       // 304 Not Modified - use cached data
       if (response.status === 304) {
-        const cachedData = localStorage.getItem(CACHE_KEY);
+        const cachedData = localStorage.getItem(userCacheKey);
         if (cachedData) {
           setBundle(JSON.parse(cachedData));
         }
@@ -185,8 +188,8 @@ export function PermissionProvider({ children }: { children: React.ReactNode }) 
 
       // Update cache
       if (typeof window !== 'undefined') {
-        localStorage.setItem(CACHE_KEY, JSON.stringify(newBundle));
-        localStorage.setItem(VERSION_KEY, String(newBundle.permissionVersion));
+        localStorage.setItem(userCacheKey, JSON.stringify(newBundle));
+        localStorage.setItem(userVersionKey, String(newBundle.permissionVersion));
       }
     } catch (err) {
       console.error('Failed to fetch permissions:', err);
@@ -194,7 +197,7 @@ export function PermissionProvider({ children }: { children: React.ReactNode }) 
     } finally {
       setIsLoading(false);
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, user?.id]);
 
   // Initial fetch
   useEffect(() => {
@@ -208,10 +211,10 @@ export function PermissionProvider({ children }: { children: React.ReactNode }) 
     const unsubscribe = subscribeToEvent('PERMISSION_UPDATE', (event: any) => {
       console.log('[Permission] Received PERMISSION_UPDATE:', event);
 
-      // Clear cache and refetch
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem(CACHE_KEY);
-        localStorage.removeItem(VERSION_KEY);
+      // Clear current user's cache and refetch
+      if (typeof window !== 'undefined' && user?.id) {
+        localStorage.removeItem(`faber_permissions_v4_${user.id}`);
+        localStorage.removeItem(`faber_permissions_version_v4_${user.id}`);
       }
 
       fetchPermissions(true);
@@ -418,11 +421,15 @@ export function PermissionProvider({ children }: { children: React.ReactNode }) 
   const isExpired = useMemo(() => {
     const homePerm = getHomePermission();
     if (!homePerm) return false;
+
+    // MASTER role (Global Admin) never expires
+    if (bundle?.role === 'MASTER') return false;
+
     if (['OWNER', 'ADMIN'].includes(homePerm.memberRole)) return false;
 
     const isExpiredLocally = homePerm.accessExpiresAt && new Date(homePerm.accessExpiresAt) < new Date();
     return homePerm.isExpired || !!isExpiredLocally;
-  }, [getHomePermission]);
+  }, [getHomePermission, bundle?.role]);
 
   const version = bundle?.permissionVersion || 0;
 
