@@ -5,7 +5,7 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import {
     ArrowLeft, Save, Shield, Smartphone, DoorOpen, LayoutGrid,
     ChevronDown, User, Home, Loader2, AlertCircle, Check, X,
-    Eye, Settings, Lock, Unlock, Clock, Calendar
+    Eye, Settings, Lock, Unlock, Clock, Calendar, Building2
 } from 'lucide-react';
 import { cn, getActiveHomeId } from '@/lib/utils';
 import api from '@/services/api.service';
@@ -17,21 +17,28 @@ import { PinManagement } from '@/components/members/PinManagement';
 // Permission level types matching backend
 type PermissionLevel = 'VIEW_ONLY' | 'CONTROL' | 'FULL' | 'PIN_REQUIRED';
 
-interface SubUser {
+interface HomeMembership {
+    homeId: string;
+    homeName: string;
+    homeMemberId: string;
+    role: string;
+    defaultPermission: PermissionLevel;
+    accessExpiresAt?: string;
+    menuPermissions: Record<string, boolean>;
+    devicePermissions: Record<string, PermissionLevel>;
+    roomPermissions: Record<string, PermissionLevel>;
+    permissionVersion: number;
+    hasPin?: boolean;
+    accessSchedule?: AccessSchedule;
+}
+
+interface SubUserWithMemberships {
     id: string;
     username: string;
     fullName: string;
     role: string;
-    defaultPermission: PermissionLevel;
-    receiveNotifications: boolean;
-    accessExpiresAt?: string;
     createdAt: string;
-    homeMemberId: string;
-    menuPermissions: Record<string, PermissionLevel>;
-    devicePermissions: Record<string, PermissionLevel>;
-    roomPermissions: Record<string, PermissionLevel>;
-    hasPin?: boolean;
-    accessSchedule?: AccessSchedule;
+    memberships: HomeMembership[];
 }
 
 interface Device {
@@ -48,14 +55,25 @@ interface Room {
 }
 
 // Menu items that can be controlled
-const MENU_ITEMS = [
+// Role-based restrictions:
+// - requiresMaster: Only MASTER system role can access (backend restriction)
+// - requiredMemberRoles: Only these home member roles can access
+interface MenuItemConfig {
+    key: string;
+    label: string;
+    icon: React.ComponentType<{ size?: number; className?: string }>;
+    requiresMaster?: boolean;
+    requiredMemberRoles?: string[];
+}
+
+const MENU_ITEMS: MenuItemConfig[] = [
     { key: 'dashboard', label: 'Dashboard', icon: LayoutGrid },
     { key: 'devices', label: 'Cihazlar', icon: Smartphone },
     { key: 'rooms', label: 'Odalar', icon: DoorOpen },
-    { key: 'scenes', label: 'Senaryolar', icon: Settings },
-    { key: 'members', label: 'Üyeler', icon: User },
-    { key: 'settings', label: 'Ayarlar', icon: Settings },
-    { key: 'logs', label: 'Loglar', icon: Eye },
+    { key: 'scenes', label: 'Senaryolar', icon: Settings, requiresMaster: true },
+    { key: 'members', label: 'Üyeler', icon: User, requiredMemberRoles: ['OWNER', 'ADMIN'] },
+    { key: 'settings', label: 'Ayarlar', icon: Settings, requiredMemberRoles: ['OWNER', 'ADMIN'] },
+    { key: 'logs', label: 'Loglar', icon: Eye, requiresMaster: true },
 ];
 
 const PERMISSION_LEVELS: { value: PermissionLevel; label: string; icon: React.ReactNode; color: string }[] = [
@@ -72,13 +90,15 @@ export default function SubUserDetailPage() {
     const userId = params.id as string;
     const queryHomeId = searchParams.get('homeId');
 
-    const [user, setUser] = useState<SubUser | null>(null);
+    const [user, setUser] = useState<SubUserWithMemberships | null>(null);
+    const [selectedHomeId, setSelectedHomeId] = useState<string | null>(null);
     const [devices, setDevices] = useState<Device[]>([]);
     const [rooms, setRooms] = useState<Room[]>([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [isHomeSelectorOpen, setIsHomeSelectorOpen] = useState(false);
 
-    // Local state for editing permissions
+    // Local state for editing permissions (for current selected home)
     const [menuPermissions, setMenuPermissions] = useState<Record<string, PermissionLevel>>({});
     const [devicePermissions, setDevicePermissions] = useState<Record<string, PermissionLevel>>({});
     const [roomPermissions, setRoomPermissions] = useState<Record<string, PermissionLevel>>({});
@@ -94,57 +114,28 @@ export default function SubUserDetailPage() {
     // Track if there are unsaved changes
     const [hasChanges, setHasChanges] = useState(false);
 
+    // Get current membership based on selected home
+    const currentMembership = user?.memberships.find(m => m.homeId === selectedHomeId);
 
     const fetchData = useCallback(async () => {
         try {
             setLoading(true);
-            const homeId = queryHomeId || getActiveHomeId();
-            if (!homeId) {
-                toast.error('Aktif ev bulunamadı');
-                return;
-            }
 
-            // Fetch user details, devices, and rooms in parallel
-            const [userRes, devicesRes, roomsRes] = await Promise.all([
-                api.get(`/users/sub/${userId}`),
-                api.get(`/homes/${homeId}/devices`),
-                api.get(`/homes/${homeId}/rooms`)
-            ]);
+            // Fetch user with ALL memberships
+            const userRes = await api.get(`/users/sub/${userId}/memberships`);
+            const foundUser = userRes.data as SubUserWithMemberships;
 
-            const foundUser = userRes.data;
-
-            if (!foundUser) {
+            if (!foundUser || foundUser.memberships.length === 0) {
                 toast.error('Kullanıcı bulunamadı');
                 router.push('/dashboard/members');
                 return;
             }
 
             setUser(foundUser);
-            setDevices(devicesRes.data?.data || []);
-            setRooms(roomsRes.data?.data || []);
 
-
-            // Initialize local permission state
-            // Map boolean menu permissions (backend) to PermissionLevel (frontend)
-            const menuPerms: Record<string, PermissionLevel> = {};
-            if (foundUser.menuPermissions) {
-                Object.entries(foundUser.menuPermissions).forEach(([key, val]) => {
-                    // Backend returns boolean for menu permissions. 
-                    // true means access granted (we map to 'VIEW_ONLY' as base level)
-                    if (val === true) menuPerms[key] = 'VIEW_ONLY';
-                });
-            }
-            setMenuPermissions(menuPerms);
-
-            setDevicePermissions(foundUser.devicePermissions || {});
-            setRoomPermissions(foundUser.roomPermissions || {});
-            setDefaultPermission(foundUser.defaultPermission || 'CONTROL');
-            setAccessExpiresAt(foundUser.accessExpiresAt);
-
-            // Initialize access schedule from user data
-            if (foundUser.accessSchedule) {
-                setAccessSchedule(foundUser.accessSchedule);
-            }
+            // Select initial home: query param > first membership
+            const initialHomeId = queryHomeId || foundUser.memberships[0]?.homeId;
+            setSelectedHomeId(initialHomeId);
 
         } catch (err) {
             console.error('Failed to fetch data:', err);
@@ -154,39 +145,103 @@ export default function SubUserDetailPage() {
         }
     }, [userId, router, queryHomeId]);
 
+    // Fetch home-specific data when selected home changes
+    const fetchHomeData = useCallback(async (homeId: string) => {
+        try {
+            // Fetch devices and rooms for the selected home
+            const [devicesRes, roomsRes] = await Promise.all([
+                api.get(`/homes/${homeId}/devices`),
+                api.get(`/homes/${homeId}/rooms`)
+            ]);
+
+            setDevices(devicesRes.data?.data || []);
+            setRooms(roomsRes.data?.data || []);
+        } catch (err) {
+            console.error('Failed to fetch home data:', err);
+        }
+    }, []);
+
     useEffect(() => {
         fetchData();
     }, [fetchData]);
 
+    // When selected home changes, fetch home data and update local state
+    useEffect(() => {
+        if (!selectedHomeId || !user) return;
+
+        fetchHomeData(selectedHomeId);
+
+        const membership = user.memberships.find(m => m.homeId === selectedHomeId);
+        if (membership) {
+            // Map boolean menu permissions to PermissionLevel
+            const menuPerms: Record<string, PermissionLevel> = {};
+            if (membership.menuPermissions) {
+                Object.entries(membership.menuPermissions).forEach(([key, val]) => {
+                    if (val === true) menuPerms[key] = 'VIEW_ONLY';
+                });
+            }
+            setMenuPermissions(menuPerms);
+            setDevicePermissions(membership.devicePermissions || {});
+            setRoomPermissions(membership.roomPermissions || {});
+            setDefaultPermission(membership.defaultPermission || 'CONTROL');
+            setAccessExpiresAt(membership.accessExpiresAt);
+
+            if (membership.accessSchedule) {
+                setAccessSchedule(membership.accessSchedule);
+            } else {
+                setAccessSchedule({ enabled: false, days: [], timeStart: '08:00', timeEnd: '18:00' });
+            }
+        }
+    }, [selectedHomeId, user, fetchHomeData]);
+
     // Track changes
     useEffect(() => {
-        if (!user) return;
+        if (!currentMembership) return;
 
-        const menuChanged = JSON.stringify(menuPermissions) !== JSON.stringify(user.menuPermissions || {});
-        const deviceChanged = JSON.stringify(devicePermissions) !== JSON.stringify(user.devicePermissions || {});
-        const roomChanged = JSON.stringify(roomPermissions) !== JSON.stringify(user.roomPermissions || {});
-        const defaultChanged = defaultPermission !== user.defaultPermission;
-        const accessChanged = accessExpiresAt !== user.accessExpiresAt;
+        const originalMenuPerms: Record<string, PermissionLevel> = {};
+        if (currentMembership.menuPermissions) {
+            Object.entries(currentMembership.menuPermissions).forEach(([key, val]) => {
+                if (val === true) originalMenuPerms[key] = 'VIEW_ONLY';
+            });
+        }
+
+        const menuChanged = JSON.stringify(menuPermissions) !== JSON.stringify(originalMenuPerms);
+        const deviceChanged = JSON.stringify(devicePermissions) !== JSON.stringify(currentMembership.devicePermissions || {});
+        const roomChanged = JSON.stringify(roomPermissions) !== JSON.stringify(currentMembership.roomPermissions || {});
+        const defaultChanged = defaultPermission !== currentMembership.defaultPermission;
+        const accessChanged = accessExpiresAt !== currentMembership.accessExpiresAt;
 
         setHasChanges(menuChanged || deviceChanged || roomChanged || defaultChanged || accessChanged);
-    }, [menuPermissions, devicePermissions, roomPermissions, defaultPermission, accessExpiresAt, user]);
+    }, [menuPermissions, devicePermissions, roomPermissions, defaultPermission, accessExpiresAt, currentMembership]);
 
     const handleSaveMenuPermissions = async () => {
-        if (!user) return;
+        if (!user || !selectedHomeId) return;
         setSaving(true);
         try {
-            // Convert PermissionLevel to boolean for menu permissions
+            const userSystemRole = user?.role || 'SUB';
+            const userMemberRole = currentMembership?.role || 'GUEST';
+
             const menuPermsPayload: Record<string, boolean> = {};
             Object.entries(menuPermissions).forEach(([key, val]) => {
+                // Find menu item config to check role restrictions
+                const menuItem = MENU_ITEMS.find(m => m.key === key);
+                if (!menuItem) return;
+
+                // Don't save if role-blocked
+                const isBlockedByMaster = menuItem.requiresMaster && userSystemRole !== 'MASTER';
+                const isBlockedByMemberRole = menuItem.requiredMemberRoles && 
+                    !menuItem.requiredMemberRoles.includes(userMemberRole);
+
+                if (isBlockedByMaster || isBlockedByMemberRole) return;
+
                 if (val) menuPermsPayload[key] = true;
             });
 
             await api.patch(`/users/sub/${user.id}/menu-permissions`, {
-                menuPermissions: menuPermsPayload
+                menuPermissions: menuPermsPayload,
+                homeId: selectedHomeId
             });
             toast.success('Menü izinleri kaydedildi');
-
-            // Start reloading user to get fresh state from backend
             fetchData();
         } catch (err) {
             console.error('Failed to save menu permissions:', err);
@@ -197,11 +252,12 @@ export default function SubUserDetailPage() {
     };
 
     const handleSaveDevicePermissions = async () => {
-        if (!user) return;
+        if (!user || !selectedHomeId) return;
         setSaving(true);
         try {
             await api.patch(`/users/sub/${user.id}/device-permissions`, {
-                devicePermissions: devicePermissions
+                devicePermissions: devicePermissions,
+                homeId: selectedHomeId
             });
             toast.success('Cihaz izinleri kaydedildi');
             await fetchData();
@@ -214,11 +270,12 @@ export default function SubUserDetailPage() {
     };
 
     const handleSaveRoomPermissions = async () => {
-        if (!user) return;
+        if (!user || !selectedHomeId) return;
         setSaving(true);
         try {
             await api.patch(`/users/sub/${user.id}/room-permissions`, {
-                roomPermissions: roomPermissions
+                roomPermissions: roomPermissions,
+                homeId: selectedHomeId
             });
             toast.success('Oda izinleri kaydedildi');
             await fetchData();
@@ -231,19 +288,33 @@ export default function SubUserDetailPage() {
     };
 
     const handleSaveAll = async () => {
+        if (!user || !selectedHomeId) return;
         setSaving(true);
         try {
-            // Convert PermissionLevel to boolean for menu permissions
+            const userSystemRole = user?.role || 'SUB';
+            const userMemberRole = currentMembership?.role || 'GUEST';
+
             const menuPermsPayload: Record<string, boolean> = {};
             Object.entries(menuPermissions).forEach(([key, val]) => {
+                // Find menu item config to check role restrictions
+                const menuItem = MENU_ITEMS.find(m => m.key === key);
+                if (!menuItem) return;
+
+                // Don't save if role-blocked
+                const isBlockedByMaster = menuItem.requiresMaster && userSystemRole !== 'MASTER';
+                const isBlockedByMemberRole = menuItem.requiredMemberRoles && 
+                    !menuItem.requiredMemberRoles.includes(userMemberRole);
+
+                if (isBlockedByMaster || isBlockedByMemberRole) return;
+
                 if (val) menuPermsPayload[key] = true;
             });
 
             await Promise.all([
-                api.patch(`/users/sub/${user!.id}/menu-permissions`, { menuPermissions: menuPermsPayload }),
-                api.patch(`/users/sub/${user!.id}/device-permissions`, { devicePermissions: devicePermissions }),
-                api.patch(`/users/sub/${user!.id}/room-permissions`, { roomPermissions: roomPermissions }),
-                api.patch(`/users/sub/${user!.id}`, { accessExpiresAt: accessExpiresAt || null }), // Update expiration
+                api.patch(`/users/sub/${user!.id}/menu-permissions`, { menuPermissions: menuPermsPayload, homeId: selectedHomeId }),
+                api.patch(`/users/sub/${user!.id}/device-permissions`, { devicePermissions: devicePermissions, homeId: selectedHomeId }),
+                api.patch(`/users/sub/${user!.id}/room-permissions`, { roomPermissions: roomPermissions, homeId: selectedHomeId }),
+                api.patch(`/users/sub/${user!.id}`, { accessExpiresAt: accessExpiresAt || null, homeId: selectedHomeId }),
             ]);
             toast.success('Tüm izinler kaydedildi');
             await fetchData();
@@ -279,13 +350,10 @@ export default function SubUserDetailPage() {
 
     // Handler for saving PIN
     const handleSavePin = async (pin: string) => {
-        if (!user) return;
+        if (!user || !selectedHomeId) return;
         try {
-            const res = await api.patch(`/users/sub/${user.id}`, { pin });
+            await api.patch(`/users/sub/${user.id}`, { pin, homeId: selectedHomeId });
             toast.success('PIN kaydedildi');
-            if (res.data) {
-                setUser(res.data);
-            }
             await fetchData();
         } catch (err) {
             console.error('Failed to save PIN:', err);
@@ -296,13 +364,10 @@ export default function SubUserDetailPage() {
 
     // Handler for removing PIN
     const handleRemovePin = async () => {
-        if (!user) return;
+        if (!user || !selectedHomeId) return;
         try {
-            const res = await api.patch(`/users/sub/${user.id}`, { pin: '' });
+            await api.patch(`/users/sub/${user.id}`, { pin: '', homeId: selectedHomeId });
             toast.success('PIN kaldırıldı');
-            if (res.data) {
-                setUser(res.data);
-            }
             await fetchData();
         } catch (err) {
             console.error('Failed to remove PIN:', err);
@@ -312,10 +377,10 @@ export default function SubUserDetailPage() {
 
     // Handler for saving schedule
     const handleSaveSchedule = async () => {
-        if (!user) return;
+        if (!user || !selectedHomeId) return;
         setSaving(true);
         try {
-            await api.patch(`/users/sub/${user.id}`, { accessSchedule });
+            await api.patch(`/users/sub/${user.id}`, { accessSchedule, homeId: selectedHomeId });
             toast.success('Erişim takvimi kaydedildi');
             fetchData();
         } catch (err) {
@@ -411,6 +476,80 @@ export default function SubUserDetailPage() {
             <main className="flex-1 overflow-y-auto p-6 md:p-8">
                 <div className="max-w-4xl mx-auto flex flex-col gap-6">
 
+                    {/* Home Selector - Only show if user has multiple home memberships */}
+                    {user.memberships.length > 1 && (
+                        <section className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl p-4 border border-blue-200 dark:border-blue-800">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/50">
+                                        <Building2 className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                                    </div>
+                                    <div>
+                                        <p className="text-sm font-bold text-blue-900 dark:text-blue-200">Ev Seçimi</p>
+                                        <p className="text-xs text-blue-600 dark:text-blue-400">
+                                            {user.memberships.length} evde üyelik var - izinleri düzenlemek için ev seçin
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="relative">
+                                    <button
+                                        onClick={() => setIsHomeSelectorOpen(!isHomeSelectorOpen)}
+                                        className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-gray-800 rounded-xl border border-blue-200 dark:border-blue-700 shadow-sm hover:shadow-md transition-all"
+                                    >
+                                        <Home size={18} className="text-blue-600" />
+                                        <span className="font-semibold text-gray-900 dark:text-white">
+                                            {currentMembership?.homeName || 'Ev Seç'}
+                                        </span>
+                                        <ChevronDown size={16} className={cn("text-gray-400 transition-transform", isHomeSelectorOpen && "rotate-180")} />
+                                    </button>
+
+                                    {isHomeSelectorOpen && (
+                                        <>
+                                            <div className="fixed inset-0 z-40" onClick={() => setIsHomeSelectorOpen(false)} />
+                                            <div className="absolute right-0 top-full mt-2 w-64 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 z-50 py-2">
+                                                {user.memberships.map(membership => (
+                                                    <button
+                                                        key={membership.homeId}
+                                                        onClick={() => {
+                                                            setSelectedHomeId(membership.homeId);
+                                                            setIsHomeSelectorOpen(false);
+                                                        }}
+                                                        className={cn(
+                                                            "w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors",
+                                                            selectedHomeId === membership.homeId && "bg-blue-50 dark:bg-blue-900/30"
+                                                        )}
+                                                    >
+                                                        <div className={cn(
+                                                            "w-8 h-8 rounded-lg flex items-center justify-center",
+                                                            selectedHomeId === membership.homeId
+                                                                ? "bg-primary text-white"
+                                                                : "bg-gray-100 dark:bg-gray-700 text-gray-500"
+                                                        )}>
+                                                            <Home size={16} />
+                                                        </div>
+                                                        <div className="flex-1 text-left">
+                                                            <p className={cn(
+                                                                "text-sm font-medium",
+                                                                selectedHomeId === membership.homeId ? "text-primary" : "text-gray-700 dark:text-gray-300"
+                                                            )}>
+                                                                {membership.homeName}
+                                                            </p>
+                                                            <p className="text-xs text-gray-500">{membership.role}</p>
+                                                        </div>
+                                                        {selectedHomeId === membership.homeId && (
+                                                            <Check size={16} className="text-primary" />
+                                                        )}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                        </section>
+                    )}
+
                     {/* Profile Section */}
                     <section className="bg-white dark:bg-surface-dark rounded-xl p-6 shadow-sm border border-slate-100 dark:border-slate-800">
                         <div className="flex flex-col md:flex-row items-center justify-between gap-6">
@@ -421,9 +560,14 @@ export default function SubUserDetailPage() {
                                 <div>
                                     <h2 className="text-xl font-bold text-gray-900 dark:text-white">{user.fullName}</h2>
                                     <p className="text-sm text-gray-500">@{user.username}</p>
-                                    <p className="text-xs text-gray-400 mt-1">
-                                        Oluşturulma: {new Date(user.createdAt).toLocaleDateString('tr-TR')}
-                                    </p>
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 font-medium">
+                                            {currentMembership?.role || 'N/A'}
+                                        </span>
+                                        <span className="text-xs text-gray-400">
+                                            {currentMembership?.homeName}
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
 
@@ -480,7 +624,7 @@ export default function SubUserDetailPage() {
                         </div>
 
                         <PinManagement
-                            hasPin={!!user?.hasPin}
+                            hasPin={!!currentMembership?.hasPin}
                             onSavePin={handleSavePin}
                             onRemovePin={handleRemovePin}
                             disabled={saving}
@@ -492,7 +636,7 @@ export default function SubUserDetailPage() {
                             disabled={saving}
                         />
 
-                        {JSON.stringify(accessSchedule) !== JSON.stringify(user?.accessSchedule || { enabled: false, days: [], timeStart: '08:00', timeEnd: '18:00' }) && (
+                        {JSON.stringify(accessSchedule) !== JSON.stringify(currentMembership?.accessSchedule || { enabled: false, days: [], timeStart: '08:00', timeEnd: '18:00' }) && (
                             <button
                                 onClick={handleSaveSchedule}
                                 disabled={saving}
@@ -508,7 +652,14 @@ export default function SubUserDetailPage() {
                     <div className="flex flex-col gap-6">
                         <div className="flex items-center gap-2 px-1">
                             <Shield className="text-primary" size={20} />
-                            <h3 className="text-lg font-bold text-slate-900 dark:text-white">Yetkiler & İzinler</h3>
+                            <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                                Yetkiler & İzinler
+                                {currentMembership && (
+                                    <span className="ml-2 text-sm font-normal text-gray-500">
+                                        ({currentMembership.homeName})
+                                    </span>
+                                )}
+                            </h3>
                         </div>
 
                         {/* Menu Permissions */}
@@ -532,27 +683,107 @@ export default function SubUserDetailPage() {
                                 </button>
                             </div>
 
+                            {/* Role Info Banner */}
+                            <div className="px-6 py-3 bg-blue-50 dark:bg-blue-900/20 border-b border-blue-100 dark:border-blue-900/30">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <Shield size={14} className="text-blue-600 dark:text-blue-400" />
+                                        <span className="text-xs font-medium text-blue-700 dark:text-blue-300">
+                                            Kullanıcı Rolü:
+                                        </span>
+                                        <span className={cn(
+                                            "text-xs font-bold px-2 py-0.5 rounded-full",
+                                            currentMembership?.role === 'OWNER' && "bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300",
+                                            currentMembership?.role === 'ADMIN' && "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300",
+                                            currentMembership?.role === 'MEMBER' && "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300",
+                                            currentMembership?.role === 'GUEST' && "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                                        )}>
+                                            {currentMembership?.role || 'N/A'}
+                                        </span>
+                                    </div>
+                                    <span className="text-[10px] text-blue-600 dark:text-blue-400">
+                                        Bazı menüler rol gerektirir
+                                    </span>
+                                </div>
+                            </div>
+
                             <div className="divide-y divide-slate-100 dark:divide-slate-800">
                                 {MENU_ITEMS.map(item => {
                                     const Icon = item.icon;
                                     const currentLevel = menuPermissions[item.key];
                                     const hasAccess = !!currentLevel;
 
+                                    // Check role-based restrictions
+                                    // SUB users (not MASTER) cannot access requiresMaster menus
+                                    const userSystemRole = user?.role || 'SUB';
+                                    const userMemberRole = currentMembership?.role || 'GUEST';
+                                    
+                                    // MASTER role requirement (system-wide)
+                                    const isBlockedByMasterRequirement = item.requiresMaster && userSystemRole !== 'MASTER';
+                                    
+                                    // Member role requirement (home-level)
+                                    const isBlockedByMemberRole = item.requiredMemberRoles && 
+                                        !item.requiredMemberRoles.includes(userMemberRole);
+                                    
+                                    const isRoleBlocked = isBlockedByMasterRequirement || isBlockedByMemberRole;
+                                    
+                                    // Generate restriction message
+                                    let restrictionMessage = '';
+                                    if (isBlockedByMasterRequirement) {
+                                        restrictionMessage = 'Sadece sistem yöneticileri (MASTER) erişebilir';
+                                    } else if (isBlockedByMemberRole) {
+                                        restrictionMessage = `${item.requiredMemberRoles?.join(' veya ')} rolü gerekli`;
+                                    }
+
                                     return (
-                                        <div key={item.key} className="flex items-center justify-between px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                                        <div 
+                                            key={item.key} 
+                                            className={cn(
+                                                "flex items-center justify-between px-6 py-4 transition-colors",
+                                                isRoleBlocked 
+                                                    ? "bg-gray-50 dark:bg-gray-900/30 opacity-60" 
+                                                    : "hover:bg-gray-50 dark:hover:bg-gray-800/50"
+                                            )}
+                                        >
                                             <div className="flex items-center gap-3">
                                                 <div className={cn(
                                                     "p-2 rounded-lg",
-                                                    hasAccess ? "bg-green-50 dark:bg-green-900/20" : "bg-gray-100 dark:bg-gray-800"
+                                                    isRoleBlocked 
+                                                        ? "bg-gray-200 dark:bg-gray-800" 
+                                                        : hasAccess 
+                                                            ? "bg-green-50 dark:bg-green-900/20" 
+                                                            : "bg-gray-100 dark:bg-gray-800"
                                                 )}>
-                                                    <Icon size={18} className={hasAccess ? "text-green-600 dark:text-green-400" : "text-gray-400"} />
+                                                    <Icon size={18} className={cn(
+                                                        isRoleBlocked 
+                                                            ? "text-gray-400" 
+                                                            : hasAccess 
+                                                                ? "text-green-600 dark:text-green-400" 
+                                                                : "text-gray-400"
+                                                    )} />
                                                 </div>
-                                                <span className="font-medium text-gray-900 dark:text-white">{item.label}</span>
+                                                <div className="flex flex-col">
+                                                    <span className={cn(
+                                                        "font-medium",
+                                                        isRoleBlocked 
+                                                            ? "text-gray-400 dark:text-gray-500" 
+                                                            : "text-gray-900 dark:text-white"
+                                                    )}>
+                                                        {item.label}
+                                                    </span>
+                                                    {isRoleBlocked && (
+                                                        <span className="text-xs text-orange-600 dark:text-orange-400 flex items-center gap-1">
+                                                            <Lock size={10} />
+                                                            {restrictionMessage}
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </div>
 
                                             <div className="flex items-center gap-2">
                                                 <button
                                                     onClick={() => {
+                                                        if (isRoleBlocked) return; // Don't allow toggle if role blocked
                                                         if (hasAccess) {
                                                             const { [item.key]: _, ...rest } = menuPermissions;
                                                             setMenuPermissions(rest);
@@ -563,20 +794,30 @@ export default function SubUserDetailPage() {
                                                             }));
                                                         }
                                                     }}
+                                                    disabled={isRoleBlocked}
                                                     className={cn(
                                                         "relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary/20",
-                                                        hasAccess ? "bg-primary" : "bg-gray-200 dark:bg-gray-700"
+                                                        isRoleBlocked 
+                                                            ? "bg-gray-300 dark:bg-gray-700 cursor-not-allowed"
+                                                            : hasAccess 
+                                                                ? "bg-primary" 
+                                                                : "bg-gray-200 dark:bg-gray-700"
                                                     )}
                                                 >
                                                     <span
                                                         className={cn(
                                                             "inline-block h-4 w-4 transform rounded-full bg-white transition-transform",
-                                                            hasAccess ? "translate-x-6" : "translate-x-1"
+                                                            hasAccess && !isRoleBlocked ? "translate-x-6" : "translate-x-1"
                                                         )}
                                                     />
                                                 </button>
-                                                <span className="text-sm font-medium text-gray-700 dark:text-gray-300 min-w-[3rem]">
-                                                    {hasAccess ? 'Açık' : 'Kapalı'}
+                                                <span className={cn(
+                                                    "text-sm font-medium min-w-[4rem]",
+                                                    isRoleBlocked 
+                                                        ? "text-gray-400 dark:text-gray-500" 
+                                                        : "text-gray-700 dark:text-gray-300"
+                                                )}>
+                                                    {isRoleBlocked ? 'Kilitli' : hasAccess ? 'Açık' : 'Kapalı'}
                                                 </span>
                                             </div>
                                         </div>

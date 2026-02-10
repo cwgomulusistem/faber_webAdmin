@@ -9,6 +9,7 @@ import { MemberCard } from '@/components/members/MemberCard';
 import { ConnectionStatus } from '@/components/common/ConnectionStatus';
 import { useSocket } from '@/hooks/useSocket';
 import { useAuth } from '@/contexts/AuthContext';
+import { usePermission } from '@/contexts/PermissionContext';
 import { useRouter } from 'next/navigation';
 import { UserRole } from '@/types/auth.types';
 import { toast } from 'sonner';
@@ -43,20 +44,34 @@ export default function MembersPage() {
     const [searchTerm, setSearchTerm] = useState('');
     const { isConnected } = useSocket();
     const { user, isLoading: authLoading } = useAuth();
+    const { bundle, getHomePermission, isLoading: permLoading } = usePermission();
     const router = useRouter();
 
-    // Check if user is master (can invite) - robust check
+    // Check if user is master (system admin) - can do everything
     const userRole = user?.role as unknown as string;
     const isMaster = user && 'role' in user && (userRole === UserRole.MASTER || userRole === 'master' || userRole === 'MASTER');
+
+    // Check if user has OWNER or ADMIN role in the active home (can manage members)
+    const homePermission = getHomePermission();
+    const memberRole = homePermission?.memberRole;
+    const canManageMembers = isMaster || memberRole === 'OWNER' || memberRole === 'ADMIN';
+    
+    // Only MASTER and OWNER can delete members
+    const canDeleteMembers = isMaster || memberRole === 'OWNER';
 
     // Prevent double fetching in React StrictMode
     const hasFetchedRef = useRef(false);
 
     useEffect(() => {
-        if (!authLoading && !isMaster) {
+        // Wait for both auth and permissions to load
+        if (authLoading || permLoading) return;
+        
+        // If user doesn't have permission to manage members, redirect
+        if (!canManageMembers) {
+            toast.error('Bu sayfaya erişim yetkiniz yok');
             router.push('/dashboard');
         }
-    }, [isMaster, authLoading, router]);
+    }, [canManageMembers, authLoading, permLoading, router]);
 
     const fetchAllMembers = async () => {
         try {
@@ -216,7 +231,7 @@ export default function MembersPage() {
                         <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
                     </button>
 
-                    {isMaster && (
+                    {canManageMembers && (
                         <button
                             onClick={() => setIsInviteModalOpen(true)}
                             className="flex-1 md:flex-initial flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-primary hover:bg-blue-600 text-white px-4 py-2.5 md:py-2 shadow-sm transition-all active:scale-95 text-sm font-semibold h-10 md:h-auto"
@@ -288,7 +303,7 @@ export default function MembersPage() {
                             <p className="text-gray-500 text-center max-w-md">
                                 Evlerinize üye davet ederek başlayın.
                             </p>
-                            {isMaster && (
+                            {canManageMembers && (
                                 <button
                                     onClick={() => setIsInviteModalOpen(true)}
                                     className="mt-4 flex items-center gap-2 bg-primary hover:bg-blue-600 text-white px-6 py-3 rounded-xl font-semibold transition-all"
@@ -315,6 +330,7 @@ export default function MembersPage() {
                                             key={member.id}
                                             member={member}
                                             onDeleteSuccess={fetchAllMembers}
+                                            canDelete={canDeleteMembers}
                                         />
                                     ))}
                                     {residents.length === 0 && (

@@ -31,18 +31,24 @@ interface NavItem {
   icon: React.ReactNode;
   menuKey: string; // PBAC v2.0: Menu permission key
   badge?: number;
+  // PBAC v3.0: Role requirements for this menu
+  // If requiresMaster is true, only MASTER role can access
+  // If requiredMemberRoles is set, only those member roles can access
+  requiresMaster?: boolean;
+  requiredMemberRoles?: string[]; // e.g., ['OWNER', 'ADMIN']
 }
 
-// PBAC v2.0: Each nav item has a menuKey for permission checking
+// PBAC v3.0: Each nav item has role requirements in addition to menu permissions
+// - requiresMaster: API endpoint requires MASTER role (system admin)
+// - requiredMemberRoles: Minimum member role required within the home
 const navItems: NavItem[] = [
   { label: 'Dashboard', href: '/dashboard', icon: <LayoutDashboard size={20} />, menuKey: 'dashboard' },
-  { label: 'Evlerim', href: '/dashboard/homes', icon: <Home size={20} />, menuKey: 'homes' },
-  { label: 'Cihazlar', href: '/dashboard/devices', icon: <Router size={20} />, menuKey: 'devices' },
-  { label: 'Üyeler', href: '/dashboard/members', icon: <Users size={20} />, menuKey: 'members' },
   { label: 'Odalar', href: '/dashboard/rooms', icon: <DoorOpen size={20} />, menuKey: 'rooms' },
-  { label: 'Otomasyon', href: '/dashboard/scenes', icon: <Zap size={20} />, menuKey: 'scenes' },
-  { label: 'Kayıtlar', href: '/dashboard/logs', icon: <FileText size={20} />, menuKey: 'logs' },
-  { label: 'Ayarlar', href: '/dashboard/settings', icon: <Settings size={20} />, menuKey: 'settings' },
+  { label: 'Cihazlar', href: '/dashboard/devices', icon: <Router size={20} />, menuKey: 'devices' },
+  { label: 'Otomasyon', href: '/dashboard/scenes', icon: <Zap size={20} />, menuKey: 'scenes', requiresMaster: true },
+  { label: 'Üyeler', href: '/dashboard/members', icon: <Users size={20} />, menuKey: 'members', requiredMemberRoles: ['OWNER', 'ADMIN'] },
+  { label: 'Kayıtlar', href: '/dashboard/logs', icon: <FileText size={20} />, menuKey: 'logs', requiresMaster: true },
+  { label: 'Ayarlar', href: '/dashboard/settings', icon: <Settings size={20} />, menuKey: 'settings', requiredMemberRoles: ['OWNER', 'ADMIN'] },
 ];
 
 export function Sidebar() {
@@ -58,7 +64,11 @@ export function Sidebar() {
 
   const [isHomeMenuOpen, setIsHomeMenuOpen] = useState(false);
 
-  // PBAC v3.0: Filter nav items based on permissions
+  // Get active home permission for role checking
+  const { getHomePermission } = usePermission();
+  const activeHomePermission = useMemo(() => getHomePermission(), [getHomePermission]);
+
+  // PBAC v3.0: Filter nav items based on permissions AND role requirements
   // Don't show all items while loading - show minimal set
   const visibleNavItems = useMemo(() => {
     // Debug logging
@@ -67,6 +77,7 @@ export function Sidebar() {
       hasBundle: !!bundle,
       bundleRole: bundle?.role,
       activeHomeId: activeHome?.id,
+      memberRole: activeHomePermission?.memberRole,
       homes: bundle?.homes?.map(h => ({ id: h.id, name: h.name, role: h.memberRole, menuPerms: h.menuPermissions }))
     });
 
@@ -76,16 +87,36 @@ export function Sidebar() {
       return navItems.filter(item => ['dashboard', 'homes'].includes(item.menuKey));
     }
 
-    // Filter based on actual permissions
+    // Filter based on permissions AND role requirements
     const filtered = navItems.filter(item => {
-      const hasPermission = can('view', 'menu', item.menuKey);
-      console.log(`[Sidebar] ${item.menuKey}: ${hasPermission}`);
-      return hasPermission;
+      // 1. Check menu permission first
+      const hasMenuPermission = can('view', 'menu', item.menuKey);
+      
+      // 2. Check MASTER role requirement
+      if (item.requiresMaster && bundle.role !== 'MASTER') {
+        console.log(`[Sidebar] ${item.menuKey}: BLOCKED (requires MASTER, user is ${bundle.role})`);
+        return false;
+      }
+
+      // 3. Check member role requirement
+      if (item.requiredMemberRoles && activeHomePermission) {
+        const userMemberRole = activeHomePermission.memberRole;
+        const hasRequiredRole = item.requiredMemberRoles.includes(userMemberRole);
+        
+        // MASTER role bypasses member role check
+        if (bundle.role !== 'MASTER' && !hasRequiredRole) {
+          console.log(`[Sidebar] ${item.menuKey}: BLOCKED (requires ${item.requiredMemberRoles.join('/')}, user is ${userMemberRole})`);
+          return false;
+        }
+      }
+
+      console.log(`[Sidebar] ${item.menuKey}: ${hasMenuPermission}`);
+      return hasMenuPermission;
     });
 
     console.log('[Sidebar] Visible items:', filtered.map(i => i.menuKey));
     return filtered;
-  }, [can, permissionsLoading, bundle, activeHome]);
+  }, [can, permissionsLoading, bundle, activeHome, activeHomePermission]);
 
   const handleSwitchHome = (home: any) => {
     setActiveHome(home.id);

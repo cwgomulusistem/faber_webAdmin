@@ -27,7 +27,13 @@ interface Member {
     accessExpiresAt?: string;
 }
 
-export function MemberCard({ member, onDeleteSuccess }: { member: Member, onDeleteSuccess?: () => void }) {
+interface MemberCardProps {
+    member: Member;
+    onDeleteSuccess?: () => void;
+    canDelete?: boolean; // Only MASTER and OWNER can delete members
+}
+
+export function MemberCard({ member, onDeleteSuccess, canDelete = false }: MemberCardProps) {
     const router = useRouter();
     const [showMenu, setShowMenu] = React.useState(false);
     const memberType = member.type as unknown as string;
@@ -105,7 +111,8 @@ export function MemberCard({ member, onDeleteSuccess }: { member: Member, onDele
                                 <Settings size={14} />
                                 Erişimi Yönet
                             </button>
-                            {!isMaster && (
+                            {/* Only show delete button if user has permission and member is not master */}
+                            {canDelete && !isMaster && (
                                 <button
                                     onClick={() => { handleDeleteMember(); setShowMenu(false); }}
                                     className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
